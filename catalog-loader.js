@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v5";
+  const VERSION = "20261006-idb-v6";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -240,7 +240,16 @@
     };
 
     initStats();
-    populateBrands();
+
+    // Не перестраиваем <select> марки прямо во время его открытия:
+    // браузер закрывает native dropdown при замене его options.
+    // Каталог при этом уже обновлён, а следующий выбор/подбор использует
+    // новые данные без принудительного закрытия меню.
+    const brandEl = $("#brand");
+    if (!(silent && brandEl && document.activeElement === brandEl)) {
+      populateBrands(true);
+    }
+
     if (!silent) render(catalog.slice(0, 100), "Каталог товаров");
   }
 
