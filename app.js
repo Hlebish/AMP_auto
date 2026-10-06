@@ -29,6 +29,42 @@ const escapeHtml = v =>
   }[m]));
 
 let catalog = [];
+let catalogReady = false;
+
+window.catalogReady = (async function loadUnifiedCatalog() {
+  try {
+    const manifestRes = await fetch("catalog/manifest.json?v=20261006", {cache:"no-store"});
+    if (!manifestRes.ok) throw new Error("manifest HTTP " + manifestRes.status);
+    const manifest = await manifestRes.json();
+    const parts = [];
+    for (let i = 0; i < Number(manifest.chunks || 0); i++) {
+      const res = await fetch("catalog/catalog-" + String(i).padStart(2,"0") + ".json?v=20261006", {cache:"no-store"});
+      if (!res.ok) throw new Error("catalog chunk " + i + " HTTP " + res.status);
+      parts.push(...await res.json());
+    }
+    catalog = parts.map(x => ({
+      catalog_number: x.c || "",
+      manufacturer_parts: x.p || "",
+      name: x.n || "",
+      description: x.d || "",
+      quantity: x.q ?? "",
+      price: x.pr ?? "",
+      original_number: x.o || "",
+      marks: x.b || "",
+      models: x.m || "",
+      engine: x.e || "",
+      image: x.i || ""
+    }));
+    catalogReady = true;
+    initStats();
+    populateBrands();
+    render(catalog.slice(0,100), "Каталог");
+    return true;
+  } catch (e) {
+    console.warn("Unified catalog unavailable:", e);
+    return false;
+  }
+})();
 let results = [];
 let mode = "parts";
 
