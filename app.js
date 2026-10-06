@@ -281,13 +281,24 @@ function populateBrands() {
   populateModels();
 }
 
-function populateModels() {
+function populateModels(resetValue = true) {
   const b=norm($("#brand")?.value), list=document.querySelector("#modelOptions"), input=$("#model");
   if(!list||!input) return;
+
+  const current=String(input.value||"");
   const set=new Set();
   if(b) catalogForCar(b).forEach(x=>splitValues(x.models).forEach(v=>set.add(v)));
-  list.innerHTML=[...set].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,1000).map(v=>'<option value="'+escapeHtml(v)+'"></option>').join("");
-  input.value="";
+
+  list.innerHTML=[...set]
+    .sort((a,b)=>a.localeCompare(b,"ru"))
+    .slice(0,1000)
+    .map(v=>'<option value="'+escapeHtml(v)+'"></option>')
+    .join("");
+
+  // При смене марки модель сбрасываем. При редактировании модели
+  // сохраняем текущее значение, чтобы его можно было спокойно заменить.
+  if(resetValue) input.value="";
+
   if($("#engine")) $("#engine").innerHTML='<option value="">Двигатель — любой</option>';
   if($("#volume")) $("#volume").value="";
   if($("#fuel")) $("#fuel").innerHTML='<option value="">Топливо — любое</option>';
@@ -596,8 +607,8 @@ function setMode(next) {
 ========================= */
 
 $("#carBtn").onclick=searchCar;
-$("#brand").onchange=()=>populateModels();
-$("#model").oninput=()=>populateCarFilters();
+$("#brand").onchange=()=>populateModels(true);
+$("#model").onfocus=()=>populateModels(false);\n$("#model").onclick=()=>populateModels(false);\n$("#model").oninput=()=>populateCarFilters();
 $("#year").onkeydown=e=>{if(e.key==="Enter")searchCar();};
 $("#volume").onkeydown=e=>{if(e.key==="Enter")searchCar();};
 
