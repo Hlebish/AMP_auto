@@ -1,9 +1,14 @@
 (() => {
-  const CACHE_KEY = "amp_auto_full_catalog_v2";
-  const VERSION = "20261006-uploaded";
+  const VERSION = "20261006-full";
 
-  function unpack(rows) {
-    return rows.map(r => ({
+  async function getManifest(path) {
+    const res = await fetch(path + "?v=" + VERSION, { cache: "no-store" });
+    if (!res.ok) throw new Error(path + ": HTTP " + res.status);
+    return res.json();
+  }
+
+  function unpack(r) {
+    return {
       catalog_number: r.c || "",
       manufacturer_parts: r.p || "",
       name: r.n || "",
@@ -16,93 +21,94 @@
       engine: r.e || "",
       image: r.i || "",
       source: "catalog"
-    }));
-  }
-
-  async function getManifest(path) {
-    const res = await fetch(path + "?v=" + VERSION, { cache: "no-store" });
-    if (!res.ok) throw new Error(path + ": HTTP " + res.status);
-    return res.json();
+    };
   }
 
   async function loadCatalog() {
     const manifest = await getManifest("catalog/manifest.json");
-    const chunks = Number(manifest.chunks || 0);
-    if (!chunks) throw new Error("Каталог: в manifest нет chunks");
+    const count = Number(manifest.chunks || 0);
 
-    const parts = await Promise.all(
-      Array.from({ length: chunks }, (_, i) =>
-        fetch("catalog/catalog-" + String(i).padStart(2, "0") + ".json?v=" + VERSION, {
-          cache: "no-store"
-        }).then(r => {
-          if (!r.ok) throw new Error("Каталог chunk " + i + ": HTTP " + r.status);
-          return r.json();
-        })
-      )
-    );
+    if (!count) {
+      throw new Error("Каталог: manifest не содержит chunks");
+    }
 
-    return parts.flat().map(row => unpack([row])[0]);
+    const rows = [];
+
+    for (let i = 0; i < count; i++) {
+      const name = "catalog/catalog-" + String(i).padStart(2, "0") + ".json";
+      const res = await fetch(name + "?v=" + VERSION, { cache: "no-store" });
+
+      if (!res.ok) {
+        throw new Error(name + ": HTTP " + res.status);
+      }
+
+      const part = await res.json();
+
+      if (Array.isArray(part)) {
+        for (const row of part) {
+          rows.push(unpack(row));
+        }
+      }
+    }
+
+    return rows;
   }
 
   async function loadCrossDatabase() {
     const manifest = await getManifest("crosses/manifest.json");
-    const chunks = Number(manifest.chunks || 0);
-    if (!chunks) throw new Error("Кроссы: в manifest нет chunks");
+    const count = Number(manifest.chunks || 0);
 
-    const parts = await Promise.all(
-      Array.from({ length: chunks }, (_, i) =>
-        fetch("crosses/cross-" + String(i).padStart(2, "0") + ".json?v=" + VERSION, {
-          cache: "no-store"
-        }).then(r => {
-          if (!r.ok) throw new Error("Кроссы chunk " + i + ": HTTP " + r.status);
-          return r.json();
-        })
-      )
-    );
+    if (!count) {
+      throw new Error("Кроссы: manifest не содержит chunks");
+    }
 
-    const rows = parts.flat();
     const by_oem = {};
     const by_article = {};
 
-    for (const x of rows) {
-      const oem = compact(x.o || "");
-      const article = compact(x.a || "");
-      const row = {
-        article: x.a || "",
-        brand: x.b || "",
-        oem: x.o || "",
-        oem_brand: x.ob || ""
-      };
+    for (let i = 0; i < count; i++) {
+      const name = "crosses/cross-" + String(i).padStart(2, "0") + ".json";
+      const res = await fetch(name + "?v=" + VERSION, { cache: "no-store" });
 
-      if (oem) (by_oem[oem] ||= []).push(row);
-      if (article) (by_article[article] ||= []).push(row);
+      if (!res.ok) {
+        throw new Error(name + ": HTTP " + res.status);
+      }
+
+      const part = await res.json();
+
+      if (!Array.isArray(part)) continue;
+
+      for (const x of part) {
+        const oem = compact(x.o || "");
+        const article = compact(x.a || "");
+        const row = {
+          article: x.a || "",
+          brand: x.b || "",
+          oem: x.o || "",
+          oem_brand: x.ob || ""
+        };
+
+        if (oem) {
+          (by_oem[oem] ||= []).push(row);
+        }
+
+        if (article) {
+          (by_article[article] ||= []).push(row);
+        }
+      }
     }
 
-    const data = { by_oem, by_article };
-    window.crossData = data;
-    return data;
-  }
-
-  async function loadFullCatalog() {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length) return parsed;
-      } catch (e) {}
-    }
-
-    const rows = await loadCatalog();
-    localStorage.setItem(CACHE_KEY, JSON.stringify(rows));
-    return rows;
+    window.crossData = { by_oem, by_article };
+    return window.crossData;
   }
 
   function installFullCatalog(rows) {
     catalog = rows;
 
-    // Подбор автомобиля работает только по товарам, реально присутствующим в каталоге.
     catalogForCar = function(brand = "", model = "", engine = "") {
-      const b = norm(brand), m = norm(model), e = norm(engine);
+      const b = norm(brand);
+      const m = norm(model);
+      const e = norm(engine);
+
       return catalog.filter(item =>
         hasValue(item.marks, b) &&
         hasValue(item.models, m) &&
@@ -110,76 +116,30 @@
       );
     };
 
-    // Показываем сначала наличие на складе, затем товары под заказ.
-    render = function(list, title = "Каталог") {
-      const sorted = [...list].sort((a, b) => {
-        const sa = qtyValue(a.quantity) > 0 ? 1 : 0;
-        const sb = qtyValue(b.quantity) > 0 ? 1 : 0;
-        return sb - sa;
-      });
-
-      results = sorted.slice(0, 300);
-      $("#resultTitle").textContent =
-        title + (sorted.length > 300 ? " · первые 300" : "");
-
-      if (!sorted.length) {
-        $("#results").innerHTML = '<div class="empty">Ничего не найдено.</div>';
-        return;
-      }
-
-      $("#results").innerHTML = sorted.slice(0, 300).map(x => {
-        const inStock = qtyValue(x.quantity) > 0;
-        const qty = String(x.quantity ?? "");
-
-        return `
-          <article class="result-card ${inStock ? "" : "order-result"}">
-            <div>
-              <div class="result-name">${escapeHtml(x.name || x.catalog_number)}</div>
-              <div class="meta">
-                <strong>${escapeHtml(x.catalog_number)}</strong>
-                · ${escapeHtml(x.manufacturer_parts || "")}
-                <br>
-                ${inStock
-                  ? '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
-                  : '<span class="order-badge">🟠 ПОД ЗАКАЗ</span>'}
-                <br>
-                OEM: ${escapeHtml(String(x.original_number || "").split(",").slice(0, 6).join(", "))}
-                ${x.marks ? "<br>Авто: " + escapeHtml(x.marks) : ""}
-                ${x.models ? " · " + escapeHtml(String(x.models).split(",").slice(0, 3).join(", ")) : ""}
-                ${inStock
-                  ? '<br><span class="qty">В наличии: ' + escapeHtml(qty) +
-                    (x.price ? " · " + Number(x.price).toLocaleString("uk-UA") + " ₴" : "") +
-                    "</span>"
-                  : '<br><span class="qty">Сейчас нет на складе · можно заказать</span>'}
-              </div>
-            </div>
-          </article>
-        `;
-      }).join("");
-    };
-
     initStats();
     populateBrands();
     render(catalog.slice(0, 100), "Каталог товаров");
-    toast("✅ Загружен полный каталог: " + catalog.length + " строк");
+
+    toast("✅ Загружено товаров: " + catalog.length.toLocaleString("ru-RU"));
   }
 
   window.fullCatalogReady = (async () => {
     try {
-      const data = await loadCrossDatabase();
-      window.crossData = data;
+      await loadCrossDatabase();
       window.crossReady = Promise.resolve(true);
     } catch (e) {
-      console.warn("Cross database load failed:", e);
+      console.error("Cross database load failed:", e);
+      window.crossData = { by_oem: {}, by_article: {} };
+      window.crossReady = Promise.resolve(false);
     }
 
     try {
-      const rows = await loadFullCatalog();
+      const rows = await loadCatalog();
       installFullCatalog(rows);
       return true;
     } catch (e) {
       console.error("Full catalog load failed:", e);
-      toast("⚠️ Не удалось загрузить полный каталог");
+      toast("⚠️ Не удалось загрузить каталог");
       return false;
     }
   })();
