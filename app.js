@@ -1,5 +1,47 @@
 const $ = s => document.querySelector(s);
 
+const loadingJobs = new Map();
+let loadingJobId = 0;
+
+function syncAppLoading() {
+  const indicator = $("#loadingIndicator");
+  const text = $("#loadingText");
+  const active = loadingJobs.size > 0;
+
+  if (text && active) {
+    const labels = [...loadingJobs.values()];
+    text.textContent = labels[labels.length - 1] || "Загрузка…";
+  }
+
+  if (indicator) {
+    indicator.classList.toggle("show", active);
+    indicator.setAttribute("aria-hidden", active ? "false" : "true");
+  }
+
+  document.body?.toggleAttribute("aria-busy", active);
+}
+
+function startAppLoading(message = "Загрузка…") {
+  const id = ++loadingJobId;
+  loadingJobs.set(id, String(message || "Загрузка…"));
+  syncAppLoading();
+
+  return {
+    setText(nextMessage) {
+      if (!loadingJobs.has(id)) return;
+      loadingJobs.set(id, String(nextMessage || "Загрузка…"));
+      syncAppLoading();
+    },
+    stop() {
+      if (!loadingJobs.has(id)) return;
+      loadingJobs.delete(id);
+      syncAppLoading();
+    }
+  };
+}
+
+window.startAppLoading = startAppLoading;
+
 const norm = v =>
   String(v ?? "")
     .toLowerCase()
