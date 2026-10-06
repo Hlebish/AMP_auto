@@ -608,7 +608,9 @@ function setMode(next) {
 
 $("#carBtn").onclick=searchCar;
 $("#brand").onchange=()=>populateModels(true);
-$("#model").onfocus=()=>populateModels(false);\n$("#model").onclick=()=>populateModels(false);\n$("#model").oninput=()=>populateCarFilters();
+$("#model").onfocus=()=>populateModels(false);
+$("#model").onclick=()=>populateModels(false);
+$("#model").oninput=()=>populateCarFilters();
 $("#year").onkeydown=e=>{if(e.key==="Enter")searchCar();};
 $("#volume").onkeydown=e=>{if(e.key==="Enter")searchCar();};
 
