@@ -259,6 +259,12 @@
     ) || ownRows[0] || null;
 
     const ownArticle = compact(ownRow?.article || "");
+    const orderRows = rows.filter(row =>
+      !(typeof window.isOwnManufacturer === "function"
+        ? window.isOwnManufacturer(row.brand || "")
+        : compact(row.brand || "") === "amparts")
+    );
+    const firstOrderRow = orderRows[0] || null;
 
     // Сначала показываем нашу позицию как "НЕТ В НАЛИЧИИ",
     // если она существует как AMParts, но на складе её нет.
@@ -291,6 +297,11 @@
                   price: ""
                 }
           );
+
+      if (firstOrderRow) {
+        item._order_offer_article = firstOrderRow.article || "";
+        item._order_offer_brand = firstOrderRow.brand || "";
+      }
 
       result.push(item);
       seen.add(ownArticle);
