@@ -479,19 +479,13 @@ async function searchCar() {
 
   const matched = catalogForCar(b, m, e);
 
-  // Подбор автомобиля должен работать так же, как обычный поиск:
-  // сначала реальные складские позиции, затем подходящие товары под заказ.
-  // Заказной прайс не содержит полей марки/модели, поэтому связываем его
-  // с автомобилем через OEM -> кросс -> артикул.
-  try {
-    if (window.crossReady) await window.crossReady;
-    if (window.ensureOrderCatalog) await window.ensureOrderCatalog();
-  } catch (e) {}
-
+  // Подбор автомобиля должен работать как обычный поиск:
+  // склад + дополнительные позиции под заказ через базу кроссов.
+  // Важно: не ждём загрузки всего 300k прайса — для телефона это лишняя нагрузка.
   const stockList = matched.slice();
-  const orderByArticle = new Map();
 
-  if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) {
+  const orderByArticle = new Map();
+  if (Array.isArray(window.orderCatalog)) {
     for (const item of window.orderCatalog) {
       const key = compact(item.catalog_number);
       if (key && !orderByArticle.has(key)) orderByArticle.set(key, item);
@@ -508,30 +502,45 @@ async function searchCar() {
       .filter(Boolean);
 
     for (const oem of oems) {
-      const rows = (window.crossData?.by_oem?.[oem] || []);
+      const rows = window.crossData?.by_oem?.[oem] || [];
+
       for (const row of rows) {
         const article = compact(row.article);
         if (!article || seenOrder.has(article)) continue;
 
-        const orderItem = orderByArticle.get(article);
-        if (!orderItem) continue;
+        const existing = orderByArticle.get(article);
+
+        // Если прайс уже загружен — берём реальную запись с ценой/брендом.
+        // Если ещё нет — всё равно показываем кросс как позицию "под заказ".
+        // Это особенно важно на телефоне, где 300k строк не должны блокировать поиск.
+        const item = existing
+          ? {
+              ...existing,
+              _order: true,
+              _order_brand: existing.manufacturer_parts || row.brand || "",
+              _order_oem: row.oem || stockItem.original_number || ""
+            }
+          : {
+              _order: true,
+              _order_brand: row.brand || "",
+              _order_oem: row.oem || stockItem.original_number || "",
+              catalog_number: row.article,
+              manufacturer_parts: row.brand || "",
+              name: "Деталь " + row.article,
+              original_number: row.oem || "",
+              quantity: 0,
+              price: ""
+            };
 
         seenOrder.add(article);
-        orderList.push({
-          ...orderItem,
-          _order: true,
-          _order_brand: orderItem.manufacturer_parts || row.brand || "",
-          _order_oem: row.oem || stockItem.original_number || ""
-        });
+        orderList.push(item);
       }
     }
   }
 
-  // Сначала склад, затем под заказ — без дедупликации между источниками.
-  const list = [
-    ...stockList,
-    ...orderList
-  ];
+  // Наш склад всегда первым, под заказ — следом.
+  // Один и тот же артикул из двух источников НЕ удаляем.
+  const list = [...stockList, ...orderList];
 
   render(list, "Подбор по автомобилю");
 
