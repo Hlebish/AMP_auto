@@ -587,147 +587,105 @@ function initStats() {
    АВТОМОБИЛИ
 ========================= */
 
-function populateBrands() {
+function splitValues(value) {
+  return String(value || "")
+    .split(",")
+    .map(v => norm(v).trim())
+    .filter(Boolean);
+}
 
-  const set =
-    new Set();
+function hasValue(field, wanted) {
+  const w = norm(wanted);
+  return !w || splitValues(field).includes(w);
+}
+
+// Автомобильный подбор строится ТОЛЬКО из каталога с quantity > 0.
+// Поэтому в списках никогда не появляются модели/двигатели,
+// для которых на складе нет ни одной доступной детали.
+function catalogForCar(brand = "", model = "", engine = "") {
+  const b = norm(brand);
+  const m = norm(model);
+  const e = norm(engine);
+
+  return catalog.filter(item =>
+    hasValue(item.marks, b) &&
+    hasValue(item.models, m) &&
+    hasValue(item.engine, e)
+  );
+}
+
+function populateBrands() {
+  const set = new Set();
 
   catalog.forEach(x => {
-
-    String(
-      x.marks || ""
-    )
-      .split(",")
-      .map(v => v.trim())
-      .filter(Boolean)
-      .forEach(v => set.add(v));
+    splitValues(x.marks).forEach(v => set.add(v));
   });
 
-  const el =
-    $("#brand");
+  const el = $("#brand");
 
   el.innerHTML =
     '<option value="">Марка</option>' +
-
     [...set]
-      .sort((a, b) =>
-        a.localeCompare(b)
-      )
-      .map(
-        v =>
-          "<option>" +
-          escapeHtml(v) +
-          "</option>"
-      )
+      .sort((a,b) => a.localeCompare(b, "ru"))
+      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
+        escapeHtml(v) + "</option>")
       .join("");
+
+  $("#model").innerHTML = '<option value="">Сначала выберите марку</option>';
+  $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
 }
 
 function populateModels() {
+  const b = norm($("#brand").value);
+  const set = new Set();
 
-  const b =
-    norm($("#brand").value);
+  if (!b) {
+    $("#model").innerHTML = '<option value="">Сначала выберите марку</option>';
+    $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
+    return;
+  }
 
-  const set =
-    new Set();
-
-  catalog
-    .filter(
-      x =>
-        !b ||
-        norm(x.marks)
-          .split(",")
-          .map(v => v.trim())
-          .includes(b)
-    )
-    .forEach(x => {
-
-      String(
-        x.models || ""
-      )
-        .split(",")
-        .map(v => v.trim())
-        .filter(Boolean)
-        .forEach(v =>
-          set.add(v)
-        );
-    });
+  // Модель попадает сюда только если есть реальный товар:
+  // BMW + эта модель + quantity > 0.
+  catalogForCar(b).forEach(x => {
+    splitValues(x.models).forEach(v => set.add(v));
+  });
 
   $("#model").innerHTML =
     '<option value="">Модель</option>' +
-
     [...set]
-      .sort((a, b) =>
-        a.localeCompare(b)
-      )
+      .sort((a,b) => a.localeCompare(b, "ru"))
       .slice(0, 500)
-      .map(
-        v =>
-          "<option>" +
-          escapeHtml(v) +
-          "</option>"
-      )
+      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
+        escapeHtml(v) + "</option>")
       .join("");
 
-  $("#engine").innerHTML =
-    '<option value="">Двигатель</option>';
+  $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
 }
 
 function populateEngines() {
+  const b = norm($("#brand").value);
+  const m = norm($("#model").value);
+  const set = new Set();
 
-  const b =
-    norm($("#brand").value);
+  if (!b || !m) {
+    $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
+    return;
+  }
 
-  const m =
-    norm($("#model").value);
-
-  const set =
-    new Set();
-
-  catalog
-    .filter(x => {
-
-      const brands =
-        norm(x.marks)
-          .split(",")
-          .map(v => v.trim());
-
-      const models =
-        norm(x.models)
-          .split(",")
-          .map(v => v.trim());
-
-      return (
-        (!b || brands.includes(b)) &&
-        (!m || models.includes(m))
-      );
-    })
-    .forEach(x => {
-
-      String(
-        x.engine || ""
-      )
-        .split(",")
-        .map(v => v.trim())
-        .filter(Boolean)
-        .forEach(v =>
-          set.add(v)
-        );
-    });
+  // Двигатели строятся только из реальных записей
+  // выбранной марки + выбранной модели.
+  catalogForCar(b, m).forEach(x => {
+    splitValues(x.engine).forEach(v => set.add(v));
+  });
 
   $("#engine").innerHTML =
     '<option value="">Двигатель</option>' +
-
     [...set]
-      .sort((a, b) =>
-        a.localeCompare(b)
-      )
+      .sort((a,b) => a.localeCompare(b, "ru"))
       .slice(0, 500)
-      .map(
-        v =>
-          "<option>" +
-          escapeHtml(v) +
-          "</option>"
-      )
+      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
+        escapeHtml(v) + "</option>")
       .join("");
 }
 
