@@ -22,3 +22,6 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 .login-card .logo-mark{color:#dfe6eb}
 .login-card small{color:#d92d20;word-break:break-word}
 .login-card .primary{min-height:46px}
+
+/* Stock / order result states */
+.stock-badge,.order-badge{display:inline-block;font-weight:900;font-size:11px;letter-spacing:.3px;border-radius:7px;padding:3px 7px;margin:2px 0 3px}.stock-badge{background:#e7f7e9;color:#21852b}.order-badge{background:#fff1d8;color:#a86100}.order-result{border-color:#f0d7a7;background:linear-gradient(90deg,var(--card),#fffaf0)}.order-result .result-name{color:#9a6100}.dark .stock-badge{background:#17371c;color:#78dc82}.dark .order-badge{background:#3d2d13;color:#ffc866}.dark .order-result{background:linear-gradient(90deg,var(--card),#211b10);border-color:#634d27}
