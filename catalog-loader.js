@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v3";
+  const VERSION = "20261006-idb-v4";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -141,6 +141,57 @@
   function installOrders(rows, silent = false) {
     orderCatalog = Array.isArray(rows) ? rows : [];
     window.orderCatalog = orderCatalog;
+
+    // Индексируем только известные типы деталей. Это сильно ускоряет
+    // массовые запросы вроде "поршни": вместо прохода по 300k+ строкам
+    // поиск получает только подходящую категорию.
+    const partTerms = {
+      капот: ["капот","капота","капоту","капотом","hood","bonnet"],
+      крыло: ["крыло","крыла","крылу","крылом","крылья","крило","wing","fender"],
+      бампер: ["бампер","бампера","бамперу","бампером","бамперы","bumper"],
+      дверь: ["дверь","двери","дверей","дверью","дверця","door"],
+      фара: ["фара","фары","фар","фару","фарами","headlight","headlamp"],
+      фонарь: ["фонарь","фонари","фонаря","ліхтар","tail light","taillight"],
+      решетка: ["решетка","решётка","решітка","решетки","решітки","grille"],
+      пластик: ["пластик","пластика","пластиковый","пластиковая","пластикове","plastic"],
+      зеркало: ["зеркало","зеркала","дзеркало","mirror"],
+      стекло: ["стекло","стекла","скло","glass"],
+      подкрылок: ["подкрылок","подкрылка","подкрылки","підкрилок","fender liner"],
+      усилитель: ["усилитель","усилителя","підсилювач","reinforcement"],
+      замок: ["замок","замка","замку","lock","latch"],
+      ручка: ["ручка","ручки","ручку","handle"],
+      молдинг: ["молдинг","молдинги","molding"],
+      спойлер: ["спойлер","спойлера","spoiler"],
+      крышка: ["крышка","крышки","крышку","кришка","cover"],
+      защита: ["защита","защиты","защиту","захист","guard"],
+      подкрыльник: ["подкрыльник","підкрилок","fender liner"],
+      поршень: ["поршень","поршни","поршня","поршней","поршнями","piston","pistons"],
+      колодка: ["колодка","колодки","тормозная колодка","brake pad"],
+      диск: ["диск","диски","тормозной диск","brake disc"],
+      фильтр: ["фильтр","фильтры","filter"],
+      свеча: ["свеча","свечи","свеча зажигания","spark plug"]
+    };
+
+    const index = {};
+    for (const key of Object.keys(partTerms)) index[key] = [];
+
+    for (const item of orderCatalog) {
+      const text = norm([
+        item.name,
+        item.description,
+        item.manufacturer_parts
+      ].filter(Boolean).join(" "));
+      if (!text) continue;
+
+      for (const [key, terms] of Object.entries(partTerms)) {
+        if (terms.some(term => text.includes(norm(term)))) {
+          index[key].push(item);
+        }
+      }
+    }
+
+    window.orderPartIndex = index;
+
     if (!silent && typeof searchParts === "function") {
       render(catalog.slice(0, 100), "Каталог склада");
     }
