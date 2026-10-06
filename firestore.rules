@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /catalog/meta {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    match /catalogChunks/{chunkId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+  }
+}
