@@ -998,8 +998,8 @@ async function searchCar() {
 
           const existing=orderByArticle.get(article);
           const item=existing
-            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
-            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:"Деталь "+row.article,original_number:row.oem||"",quantity:0,price:""};
+            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:stockItem.catalog_number||""}
+            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:stockItem.catalog_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:row.article,original_number:row.oem||"",quantity:0,price:""};
           seenOrder.add(article);
           orderList.push(item);
         }
