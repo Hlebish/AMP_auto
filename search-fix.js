@@ -220,7 +220,8 @@
     .filter(x => x.score > 0)
     .sort((a,b) => {
       if (b.score !== a.score) return b.score - a.score;
-      const rank = { stock: 0, unavailable: 1, order: 2 };\n      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
+      const rank = { stock: 0, unavailable: 1, order: 2 };
+      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
     })
     .map(x => x.item);
   }
@@ -411,7 +412,8 @@
     .filter(x => x.score > 0)
     .sort((a,b) => {
       if (b.score !== a.score) return b.score - a.score;
-      const rank = { stock: 0, unavailable: 1, order: 2 };\n      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
+      const rank = { stock: 0, unavailable: 1, order: 2 };
+      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
     });
 
     const stock = scored.map(x => x.item);
