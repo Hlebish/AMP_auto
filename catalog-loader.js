@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v7";
+  const VERSION = "20261006-idb-v8";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -264,11 +264,10 @@
 
     catalogForCar = function(brand = "", model = "", engine = "") {
       const b = norm(brand);
-      const m = norm(model);
       const e = norm(engine);
       return catalog.filter(item =>
         hasValue(item.marks, b) &&
-        hasValue(item.models, m) &&
+        modelMatches(item, model) &&
         hasValue(item.engine, e)
       );
     };
