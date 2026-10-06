@@ -835,7 +835,18 @@ function render(
 
                 ${
                   x._order
-                    ? "<br>Кросс: " + escapeHtml(x._order_oem || "")
+                    ? "<br>" + (
+                        x._order_for_article
+                          ? "Кросс к: " + escapeHtml(x._order_for_article)
+                          : "Кросс: " + escapeHtml(x._order_oem || "")
+                      )
+                    : ""
+                }
+
+                ${
+                  x._unavailable && x._order_offer_article
+                    ? "<br>Можно заказать: " + escapeHtml(x._order_offer_article) +
+                      (x._order_offer_brand ? " · " + escapeHtml(x._order_offer_brand) : "")
                     : ""
                 }
 
