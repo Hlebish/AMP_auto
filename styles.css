@@ -86,10 +86,36 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 }
 @media(max-width:560px){
   .loading-indicator{
-    top:74px;
-    left:12px;
-    right:12px;
+    top:calc(70px + env(safe-area-inset-top));
+    left:50%;
+    right:auto;
+    width:max-content;
+    max-width:calc(100vw - 24px);
+    min-height:42px;
+    padding:9px 14px;
     justify-content:center;
-    min-height:40px;
+    border-radius:999px;
+    font-size:12px;
+    gap:8px;
+    transform:translate(-50%,-8px);
+    box-shadow:0 8px 24px rgba(0,0,0,.22);
+  }
+
+  .loading-indicator.show{
+    transform:translate(-50%,0);
+  }
+
+  .loading-spinner{
+    width:18px;
+    height:18px;
+    flex-basis:18px;
+    border-width:2.5px;
+  }
+
+  .loading-indicator #loadingText{
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+    max-width:calc(100vw - 72px);
   }
 }
