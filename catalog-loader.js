@@ -1,6 +1,6 @@
 (() => {
-  const CHUNK_COUNT = 19;
-  const CACHE_KEY = "amp_auto_full_catalog_v1";
+  const CACHE_KEY = "amp_auto_full_catalog_v2";
+  const VERSION = "20261006-uploaded";
 
   function unpack(rows) {
     return rows.map(r => ({
@@ -19,48 +19,80 @@
     }));
   }
 
-  async function loadChunk(i) {
-    const res = await fetch("catalog/catalog-" + String(i).padStart(2, "0") + ".json?v=20261006", {
-      cache: "no-store"
-    });
-    if (!res.ok) throw new Error("Каталог: HTTP " + res.status);
-    return unpack(await res.json());
+  async function getManifest(path) {
+    const res = await fetch(path + "?v=" + VERSION, { cache: "no-store" });
+    if (!res.ok) throw new Error(path + ": HTTP " + res.status);
+    return res.json();
+  }
+
+  async function loadCatalog() {
+    const manifest = await getManifest("catalog/manifest.json");
+    const chunks = Number(manifest.chunks || 0);
+    if (!chunks) throw new Error("Каталог: в manifest нет chunks");
+
+    const parts = await Promise.all(
+      Array.from({ length: chunks }, (_, i) =>
+        fetch("catalog/catalog-" + String(i).padStart(2, "0") + ".json?v=" + VERSION, {
+          cache: "no-store"
+        }).then(r => {
+          if (!r.ok) throw new Error("Каталог chunk " + i + ": HTTP " + r.status);
+          return r.json();
+        })
+      )
+    );
+
+    return parts.flat().map(row => unpack([row])[0]);
   }
 
   async function loadCrossDatabase() {
+    const manifest = await getManifest("crosses/manifest.json");
+    const chunks = Number(manifest.chunks || 0);
+    if (!chunks) throw new Error("Кроссы: в manifest нет chunks");
+
     const parts = await Promise.all(
-      Array.from({ length: 6 }, (_, i) =>
-        fetch("crosses/cross-" + String(i).padStart(2, "0") + ".json?v=20261006", { cache: "no-store" })
-          .then(r => { if (!r.ok) throw new Error("Кроссы: HTTP " + r.status); return r.json(); })
+      Array.from({ length: chunks }, (_, i) =>
+        fetch("crosses/cross-" + String(i).padStart(2, "0") + ".json?v=" + VERSION, {
+          cache: "no-store"
+        }).then(r => {
+          if (!r.ok) throw new Error("Кроссы chunk " + i + ": HTTP " + r.status);
+          return r.json();
+        })
       )
     );
+
     const rows = parts.flat();
-    const by_oem = {}, by_article = {};
+    const by_oem = {};
+    const by_article = {};
+
     for (const x of rows) {
       const oem = compact(x.o || "");
       const article = compact(x.a || "");
-      const row = { article: x.a || "", brand: x.b || "", oem: x.o || "", oem_brand: x.ob || "" };
+      const row = {
+        article: x.a || "",
+        brand: x.b || "",
+        oem: x.o || "",
+        oem_brand: x.ob || ""
+      };
+
       if (oem) (by_oem[oem] ||= []).push(row);
       if (article) (by_article[article] ||= []).push(row);
     }
-    crossData = { by_oem, by_article };
-    window.crossData = crossData;
-    return true;
+
+    const data = { by_oem, by_article };
+    window.crossData = data;
+    return data;
   }
 
   async function loadFullCatalog() {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
       try {
-        const rows = JSON.parse(cached);
-        if (Array.isArray(rows) && rows.length) return rows;
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length) return parsed;
       } catch (e) {}
     }
 
-    const parts = await Promise.all(
-      Array.from({ length: CHUNK_COUNT }, (_, i) => loadChunk(i))
-    );
-    const rows = parts.flat();
+    const rows = await loadCatalog();
     localStorage.setItem(CACHE_KEY, JSON.stringify(rows));
     return rows;
   }
@@ -68,7 +100,7 @@
   function installFullCatalog(rows) {
     catalog = rows;
 
-    // Подбор автомобиля остаётся только по реальному наличию.
+    // Подбор автомобиля работает только по товарам, реально присутствующим в каталоге.
     catalogForCar = function(brand = "", model = "", engine = "") {
       const b = norm(brand), m = norm(model), e = norm(engine);
       return stockOnly(catalog).filter(item =>
@@ -78,16 +110,17 @@
       );
     };
 
-    // Полный каталог: наличие определяется quantity.
-    // Склад всегда выше товаров под заказ.
+    // Показываем сначала наличие на складе, затем товары под заказ.
     render = function(list, title = "Каталог") {
       const sorted = [...list].sort((a, b) => {
         const sa = qtyValue(a.quantity) > 0 ? 1 : 0;
         const sb = qtyValue(b.quantity) > 0 ? 1 : 0;
         return sb - sa;
       });
+
       results = sorted.slice(0, 300);
-      $("#resultTitle").textContent = title + (sorted.length > 300 ? " · первые 300" : "");
+      $("#resultTitle").textContent =
+        title + (sorted.length > 300 ? " · первые 300" : "");
 
       if (!sorted.length) {
         $("#results").innerHTML = '<div class="empty">Ничего не найдено.</div>';
@@ -97,6 +130,7 @@
       $("#results").innerHTML = sorted.slice(0, 300).map(x => {
         const inStock = qtyValue(x.quantity) > 0;
         const qty = String(x.quantity ?? "");
+
         return `
           <article class="result-card ${inStock ? "" : "order-result"}">
             <div>
@@ -127,16 +161,18 @@
     initStats();
     populateBrands();
     render(catalog.slice(0, 100), "Каталог товаров");
-    toast("✅ Загружен полный каталог: " + catalog.length + " товаров");
+    toast("✅ Загружен полный каталог: " + catalog.length + " строк");
   }
 
   window.fullCatalogReady = (async () => {
     try {
-      await loadCrossDatabase();
-      if (window.crossReady) await window.crossReady;
+      const data = await loadCrossDatabase();
+      window.crossData = data;
+      window.crossReady = Promise.resolve(true);
     } catch (e) {
       console.warn("Cross database load failed:", e);
     }
+
     try {
       const rows = await loadFullCatalog();
       installFullCatalog(rows);
