@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v2";
+  const VERSION = "20261006-idb-v3";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -206,12 +206,11 @@
 
     installCatalog(cachedCatalog.rows, true);
 
-    if (cachedOrders && Array.isArray(cachedOrders.rows)) {
-      installOrders(cachedOrders.rows, true);
-      window.orderReady = Promise.resolve(true);
-    } else {
-      window.orderReady = Promise.resolve(false);
-    }
+    // Прайс под заказ НЕ разворачиваем при старте: даже чтение 300k
+    // объектов из IndexedDB заметно подвешивает интерфейс.
+    window.orderCatalog = [];
+    orderCatalog = [];
+    window.orderReady = Promise.resolve(false);
 
     if (cachedCrosses && cachedCrosses.data) {
       installCrosses(cachedCrosses.data);
@@ -244,24 +243,8 @@
       })());
     }
 
-    if (cachedOrders && Array.isArray(cachedOrders.rows)) {
-      installOrders(cachedOrders.rows, true);
-      window.orderReady = Promise.resolve(true);
-    } else {
-      const task = (async () => {
-        try {
-          const rows = await downloadOrders(orderManifest);
-          await idbPut(ORDER_STORE, { key: oKey, version: orderManifest.version, rows });
-          installOrders(rows, true);
-          window.orderReady = Promise.resolve(true);
-        } catch (e) {
-          console.warn("AMP Auto order catalog load:", e);
-          window.orderReady = Promise.resolve(false);
-        }
-      })();
-      task.catch(() => {});
-      window.orderReady = task.then(() => true, () => false);
-    }
+    // Заказной каталог грузится только при поиске.
+    // Это критично: 307k строк нельзя разбирать на старте страницы.
 
     if (!cachedCrosses) {
       tasks.push((async () => {
@@ -278,6 +261,56 @@
     return true;
   }
 
+  let orderLoadPromise = null;
+  let activeOrderManifest = null;
+
+  async function ensureOrderCatalog() {
+    if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) return true;
+    if (orderLoadPromise) return orderLoadPromise;
+
+    if (!activeOrderManifest) {
+      try {
+        activeOrderManifest = await getManifest("orders/manifest.json");
+      } catch (e) {
+        console.warn("AMP Auto order manifest:", e);
+        return false;
+      }
+    }
+
+    orderLoadPromise = (async () => {
+      try {
+        const key = orderKey(activeOrderManifest);
+        const cached = await idbGet(ORDER_STORE, key);
+
+        let rows = cached && Array.isArray(cached.rows)
+          ? cached.rows
+          : await downloadOrders(activeOrderManifest);
+
+        // Даём браузеру отрисовать интерфейс между большими порциями.
+        // Если прайс свежий — сохраняем его, но не блокируем UI.
+        if (!cached) {
+          await idbPut(ORDER_STORE, {
+            key,
+            version: activeOrderManifest.version,
+            rows
+          });
+        }
+
+        installOrders(rows, true);
+        window.orderReady = Promise.resolve(true);
+        return true;
+      } catch (e) {
+        console.warn("AMP Auto lazy order catalog load:", e);
+        window.orderReady = Promise.resolve(false);
+        return false;
+      }
+    })();
+
+    return orderLoadPromise;
+  }
+
+  window.ensureOrderCatalog = ensureOrderCatalog;
+
   window.fullCatalogReady = (async () => {
     try {
       // Manifest'ы маленькие — их проверяем всегда, сам каталог нет.
@@ -286,6 +319,7 @@
         getManifest("crosses/manifest.json"),
         getManifest("orders/manifest.json")
       ]);
+      activeOrderManifest = orderManifest;
 
       const cached = await useCache(manifest, crossManifest, orderManifest);
 
