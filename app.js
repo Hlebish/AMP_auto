@@ -976,6 +976,19 @@ async function searchCar() {
       const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
       for(const oem of oems){
         const rows=window.crossData?.by_oem?.[oem]||[];
+        const ownRow = rows.find(row =>
+          typeof window.isOwnManufacturer === "function"
+            ? window.isOwnManufacturer(row.brand || "")
+            : compact(row.brand || "") === "amparts"
+        );
+        const firstOrderRow = rows.find(row =>
+          !(typeof window.isOwnManufacturer === "function"
+            ? window.isOwnManufacturer(row.brand || "")
+            : compact(row.brand || "") === "amparts")
+        );
+        const ownReferenceArticle =
+          compact(ownRow?.article || stockItem.catalog_number || "");
+
         for(const row of rows){
           const article=compact(row.article);
           if(!article||seenOrder.has(article)||seenOwnUnavailable.has(article)) continue;
@@ -1003,6 +1016,11 @@ async function searchCar() {
                   price:""
                 };
 
+            if (firstOrderRow) {
+              item._order_offer_article = firstOrderRow.article || "";
+              item._order_offer_brand = firstOrderRow.brand || "";
+            }
+
             seenOwnUnavailable.add(article);
             orderList.push(item);
             continue;
@@ -1010,8 +1028,8 @@ async function searchCar() {
 
           const existing=orderByArticle.get(article);
           const item=existing
-            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:stockItem.catalog_number||""}
-            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:stockItem.catalog_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:row.article,original_number:row.oem||"",quantity:0,price:""};
+            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || ""}
+            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || "",catalog_number:row.article,manufacturer_parts:row.brand||"",name:row.article,original_number:row.oem||"",quantity:0,price:""};
           seenOrder.add(article);
           orderList.push(item);
         }
