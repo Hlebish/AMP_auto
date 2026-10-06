@@ -63,6 +63,70 @@ function isOwnArticle(article, manufacturer = "") {
   return !!window.ownStockArticles?.has(key);
 }
 
+function crossFamilyRows(query) {
+  const db = window.crossData || {};
+  const byOem = db.by_oem || {};
+  const byArticle = db.by_article || {};
+  const seed = compact(query);
+  if (!seed) return [];
+
+  const queue = [
+    ...(byOem[seed] || []),
+    ...(byArticle[seed] || [])
+  ];
+
+  const rows = [];
+  const seen = new Set();
+  let cursor = 0;
+
+  while (cursor < queue.length && rows.length < 3000) {
+    const row = queue[cursor++];
+    if (!row) continue;
+
+    const id = [
+      compact(row.article || ""),
+      compact(row.brand || ""),
+      compact(row.oem || ""),
+      compact(row.oem_brand || "")
+    ].join("|");
+
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    rows.push(row);
+
+    const oemKey = compact(row.oem || "");
+    const articleKey = compact(row.article || "");
+
+    if (oemKey) queue.push(...(byOem[oemKey] || []));
+    if (articleKey) queue.push(...(byArticle[articleKey] || []));
+  }
+
+  return rows;
+}
+
+function findOwnCrossReference(query) {
+  const rows = crossFamilyRows(query);
+  const own = rows
+    .filter(row => typeof isOwnManufacturer === "function" && isOwnManufacturer(row.brand || ""))
+    .sort((a,b) => {
+      const sa = ownStockArticles.has(compact(a.article || "")) ? 0 : 1;
+      const sb = ownStockArticles.has(compact(b.article || "")) ? 0 : 1;
+      return sa - sb;
+    });
+
+  return {
+    rows,
+    own: own[0] || null,
+    orderRows: rows.filter(row =>
+      !(typeof isOwnManufacturer === "function" && isOwnManufacturer(row.brand || ""))
+    )
+  };
+}
+
+window.crossFamilyRows = crossFamilyRows;
+window.findOwnCrossReference = findOwnCrossReference;
+
+
 function makeUnavailableOwnPart(row, fallbackOem = "") {
   const article = String(row?.article || row?.catalog_number || "").trim();
   const manufacturer = String(
