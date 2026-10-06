@@ -25,7 +25,12 @@
     спойлер: ["спойлер","спойлера","spoiler"],
     крышка: ["крышка","крышки","крышку","кришка","cover"],
     защита: ["защита","защиты","защиту","захист","guard"],
-    подкрыльник: ["подкрыльник","підкрилок","fender liner"]
+    подкрыльник: ["подкрыльник","підкрилок","fender liner"],
+    поршень: ["поршень","поршни","поршня","поршней","поршнями","поршень двигателя","piston","pistons"],
+    колодка: ["колодка","колодки","тормозная колодка","brake pad"],
+    диск: ["диск","диски","тормозной диск","brake disc"],
+    фильтр: ["фильтр","фильтры","filter"],
+    свеча: ["свеча","свечи","свеча зажигания","spark plug"]
   };
 
   const brandAliases = {
@@ -174,12 +179,22 @@
     };
   }
 
-  function searchableCatalog() {
+  function searchableCatalog(partHint = null) {
+    const stockRows = catalog.map(item => ({ item, source: "stock" }));
+
+    // Для массовых категорий не сканируем весь прайс под заказ (300k+ строк).
+    // catalog-loader.js строит компактный индекс по типам деталей.
+    let orderRows = Array.isArray(window.orderCatalog)
+      ? window.orderCatalog
+      : [];
+
+    if (partHint && window.orderPartIndex && Array.isArray(window.orderPartIndex[partHint])) {
+      orderRows = window.orderPartIndex[partHint];
+    }
+
     return [
-      ...catalog.map(item => ({ item, source: "stock" })),
-      ...(Array.isArray(window.orderCatalog)
-        ? window.orderCatalog.map(item => ({ item: asOrder(item), source: "order" }))
-        : [])
+      ...stockRows,
+      ...orderRows.map(item => ({ item: asOrder(item), source: "order" }))
     ];
   }
 
@@ -350,7 +365,10 @@
       ? (tokens.map(partToken).find(Boolean) || parts[0])
       : null;
 
-    const scored = searchableCatalog().map(({item, source}) => {
+    // Если запрос состоит из одного типа детали, используем индекс заказного
+    // каталога вместо полного прохода по сотням тысяч строк.
+    const indexedPart = parts.length === 1 && tokens.length === 1 ? parts[0] : null;
+    const scored = searchableCatalog(indexedPart).map(({item, source}) => {
       let score = 0;
 
       if (brands.length) {
