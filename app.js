@@ -273,48 +273,184 @@ function currentCarBase() {
   return catalog.filter(item=>hasValue(item.marks,b)&&modelMatches(item,m));
 }
 
-function populateBrands() {
-  const set=new Set();
-  catalog.forEach(x=>splitValues(x.marks).forEach(v=>set.add(v)));
-  const el=$("#brand"); if(!el) return;
-  el.innerHTML='<option value="">Марка</option>'+[...set].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v.toUpperCase())+'">'+escapeHtml(v.toUpperCase())+'</option>').join("");
-  populateModels();
+function populateBrands(preserveValue = true) {
+  const set = new Set();
+  catalog.forEach(x => splitValues(x.marks).forEach(v => set.add(v)));
+
+  const el = $("#brand");
+  if (!el) return;
+
+  const current = preserveValue ? String(el.value || "") : "";
+  const html =
+    '<option value="">Марка</option>' +
+    [...set]
+      .sort((a, b) => a.localeCompare(b, "ru"))
+      .map(v =>
+        '<option value="' + escapeHtml(v.toUpperCase()) + '">' +
+        escapeHtml(v.toUpperCase()) +
+        '</option>'
+      )
+      .join("");
+
+  el.innerHTML = html;
+
+  if (current && [...el.options].some(o => norm(o.value) === norm(current))) {
+    el.value = current;
+  }
 }
 
 function populateModels(resetValue = true) {
-  const b=norm($("#brand")?.value), list=document.querySelector("#modelOptions"), input=$("#model");
-  if(!list||!input) return;
+  const b = norm($("#brand")?.value);
+  const el = $("#model");
+  if (!el) return;
 
-  const current=String(input.value||"");
-  const set=new Set();
-  if(b) catalogForCar(b).forEach(x=>splitValues(x.models).forEach(v=>set.add(v)));
+  const current = String(el.value || "");
+  const set = new Set();
 
-  list.innerHTML=[...set]
-    .sort((a,b)=>a.localeCompare(b,"ru"))
-    .slice(0,1000)
-    .map(v=>'<option value="'+escapeHtml(v)+'"></option>')
-    .join("");
+  if (b) {
+    catalogForCar(b).forEach(x =>
+      splitValues(x.models).forEach(v => set.add(v))
+    );
+  }
 
-  // При смене марки модель сбрасываем. При редактировании модели
-  // сохраняем текущее значение, чтобы его можно было спокойно заменить.
-  if(resetValue) input.value="";
+  el.innerHTML =
+    '<option value="">Модель</option>' +
+    [...set]
+      .sort((a, b) => a.localeCompare(b, "ru"))
+      .slice(0, 1000)
+      .map(v =>
+        '<option value="' + escapeHtml(v) + '">' +
+        escapeHtml(v) +
+        '</option>'
+      )
+      .join("");
 
-  if($("#engine")) $("#engine").innerHTML='<option value="">Двигатель — любой</option>';
-  if($("#volume")) $("#volume").value="";
-  if($("#fuel")) $("#fuel").innerHTML='<option value="">Топливо — любое</option>';
-  if($("#body")) $("#body").innerHTML='<option value="">Кузов — любой</option>';
+  if (!resetValue && current && [...el.options].some(o => norm(o.value) === norm(current))) {
+    el.value = current;
+  } else {
+    el.value = "";
+  }
+
+  populateCarFilters();
+}
+
+function populateYears(rows, resetValue = true) {
+  const el = $("#year");
+  if (!el) return;
+
+  const current = resetValue ? "" : String(el.value || "");
+  const years = new Set();
+
+  rows.forEach(item => {
+    extractYears(item).forEach(r => {
+      const from = Math.max(1950, Number(r.from) || 0);
+      const to = Math.min(2035, Number(r.to || r.from) || from);
+      for (let y = from; y <= to; y++) years.add(y);
+    });
+  });
+
+  const values = [...years].sort((a, b) => b - a);
+
+  el.innerHTML =
+    '<option value="">Год — любой</option>' +
+    values.map(y => '<option value="' + y + '">' + y + '</option>').join("");
+
+  if (current && values.includes(Number(current))) {
+    el.value = current;
+  } else {
+    el.value = "";
+  }
+}
+
+function populateVolumes(rows, resetValue = true) {
+  const el = $("#volume");
+  if (!el) return;
+
+  const current = resetValue ? "" : String(el.value || "");
+  const values = [...new Set(
+    rows.flatMap(engineVolumes)
+      .map(v => Number(v))
+      .filter(Number.isFinite)
+  )].sort((a, b) => a - b);
+
+  el.innerHTML =
+    '<option value="">Объём — любой</option>' +
+    values.map(v =>
+      '<option value="' + v + '">' +
+      v.toLocaleString("ru-RU", { maximumFractionDigits: 2 }) +
+      " л</option>"
+    ).join("");
+
+  if (current && values.some(v => Math.abs(v - Number(current)) < 0.001)) {
+    el.value = current;
+  } else {
+    el.value = "";
+  }
 }
 
 function populateCarFilters() {
-  const rows=currentCarBase(), engineEl=$("#engine"), fuelEl=$("#fuel"), bodyEl=$("#body");
-  const engines=new Set(), fuels=new Set(), bodies=new Set();
-  rows.forEach(x=>{splitValues(x.engine).forEach(v=>engines.add(v)); const f=fuelType(x), b=bodyType(x); if(f) fuels.add(f); if(b) bodies.add(b);});
-  if(engineEl) engineEl.innerHTML='<option value="">Двигатель — любой</option>'+[...engines].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,500).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
-  if(fuelEl) fuelEl.innerHTML='<option value="">Топливо — любое</option>'+[...fuels].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
-  if(bodyEl) bodyEl.innerHTML='<option value="">Кузов — любой</option>'+[...bodies].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
-}
+  const rows = currentCarBase();
+  const engineEl = $("#engine");
+  const fuelEl = $("#fuel");
+  const bodyEl = $("#body");
 
+  const engines = new Set();
+  const fuels = new Set();
+  const bodies = new Set();
+
+  rows.forEach(x => {
+    splitValues(x.engine).forEach(v => engines.add(v));
+    const f = fuelType(x);
+    const b = bodyType(x);
+    if (f) fuels.add(f);
+    if (b) bodies.add(b);
+  });
+
+  if (engineEl) {
+    engineEl.innerHTML =
+      '<option value="">Двигатель — любой</option>' +
+      [...engines]
+        .sort((a, b) => a.localeCompare(b, "ru"))
+        .slice(0, 500)
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        )
+        .join("");
+  }
+
+  if (fuelEl) {
+    fuelEl.innerHTML =
+      '<option value="">Топливо — любое</option>' +
+      [...fuels]
+        .sort((a, b) => a.localeCompare(b, "ru"))
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        )
+        .join("");
+  }
+
+  if (bodyEl) {
+    bodyEl.innerHTML =
+      '<option value="">Кузов — любой</option>' +
+      [...bodies]
+        .sort((a, b) => a.localeCompare(b, "ru"))
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        )
+        .join("");
+  }
+
+  populateYears(rows);
+  populateVolumes(rows);
+}
 function populateEngines() { populateCarFilters(); }
+
 /* =========================
    РЕЗУЛЬТАТЫ
 ========================= */
@@ -610,12 +746,14 @@ function setMode(next) {
 ========================= */
 
 $("#carBtn").onclick=searchCar;
-$("#brand").onchange=()=>populateModels(true);
-$("#model").onfocus=()=>populateModels(false);
-$("#model").onclick=()=>populateModels(false);
-$("#model").oninput=()=>populateCarFilters();
-$("#year").onkeydown=e=>{if(e.key==="Enter")searchCar();};
-$("#volume").onkeydown=e=>{if(e.key==="Enter")searchCar();};
+$("#brand").onchange=()=>{
+  populateModels(true);
+};
+$("#model").onchange=()=>{
+  populateCarFilters();
+};
+$("#year").onchange=()=>{};
+$("#volume").onchange=()=>{};
 
 $("#clearBtn").onclick=()=>{
   if($("#brand")) $("#brand").value="";
