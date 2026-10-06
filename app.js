@@ -190,10 +190,7 @@ function initStats() {
 ========================= */
 
 function splitValues(value) {
-  return String(value || "")
-    .split(",")
-    .map(v => v.trim())
-    .filter(Boolean);
+  return String(value || "").split(",").map(v => v.trim()).filter(Boolean);
 }
 
 function hasValue(field, wanted) {
@@ -201,96 +198,112 @@ function hasValue(field, wanted) {
   return !w || splitValues(field).map(v => norm(v)).includes(w);
 }
 
-// Автомобильный подбор строится ТОЛЬКО из каталога с quantity > 0.
-// Поэтому в списках никогда не появляются модели/двигатели,
-// для которых на складе нет ни одной доступной детали.
-function catalogForCar(brand = "", model = "", engine = "") {
-  const b = norm(brand);
-  const m = norm(model);
-  const e = norm(engine);
+function textOf(item) {
+  return [item.name,item.description,item.models,item.engine].filter(Boolean).join(" ");
+}
 
-  return catalog.filter(item =>
-    hasValue(item.marks, b) &&
-    hasValue(item.models, m) &&
-    hasValue(item.engine, e)
-  );
+function extractYears(item) {
+  const text = textOf(item);
+  const ranges = [];
+  const rangeRe = /\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})?/g;
+  let m;
+  while ((m = rangeRe.exec(text))) ranges.push({from:Number(m[1]),to:m[2]?Number(m[2]):null});
+  if (ranges.length) return ranges;
+  return [...text.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>({from:Number(x[1]),to:Number(x[1])}));
+}
+
+function yearMatches(item,wanted) {
+  const y=Number(String(wanted||"").replace(/\D/g,""));
+  if (!y) return true;
+  const ranges=extractYears(item);
+  if (!ranges.length) return true;
+  return ranges.some(r=>y>=r.from && (!r.to || y<=r.to));
+}
+
+function engineVolumes(item) {
+  return [...String(item.engine||"").matchAll(/(?<!\d)(\d+(?:[.,]\d+)?)\s*(?:L|л)\b/gi)]
+    .map(m=>Number(String(m[1]).replace(",","."))).filter(Number.isFinite);
+}
+
+function volumeMatches(item,wanted) {
+  const raw=String(wanted||"").trim().replace(",",".");
+  if (!raw) return true;
+  const value=Number(raw);
+  if (!Number.isFinite(value)) return true;
+  return engineVolumes(item).some(v=>Math.abs(v-value)<0.06);
+}
+
+function fuelType(item) {
+  const text=norm(String(item.engine||"")+" "+String(item.name||""));
+  if (/electric|ev|e soul|электр/.test(text)) return "Электро";
+  if (/hybrid|hev|phev|гибрид/.test(text)) return "Гибрид";
+  if (/diesel|tdi|dci|hdi|crdi|td\b|дизел/.test(text)) return "Дизель";
+  if (/gdi|tsi|tfsi|mpi|fsi|petrol|gasoline|бенз/.test(text) || engineVolumes(item).length) return "Бензин";
+  return "";
+}
+
+function bodyType(item) {
+  const text=norm(String(item.models||"")+" "+String(item.name||""));
+  if (/sedan|седан/.test(text)) return "Седан";
+  if (/wagon|station wagon|universal|универсал/.test(text)) return "Универсал";
+  if (/hatchback|хетчбек|хэтчбек/.test(text)) return "Хэтчбек";
+  if (/suv|crossover|кроссовер/.test(text)) return "SUV";
+  if (/coupe|купе/.test(text)) return "Купе";
+  if (/cabrio|convertible|кабрио/.test(text)) return "Кабриолет";
+  if (/van|фургон/.test(text)) return "Фургон";
+  if (/mpv|минивен/.test(text)) return "Минивэн";
+  if (/pickup|пикап/.test(text)) return "Пикап";
+  return "";
+}
+
+function modelMatches(item,query) {
+  const q=norm(query);
+  if (!q) return true;
+  return splitValues(item.models).some(v=>{const n=norm(v); return n===q || n.includes(q);});
+}
+
+function catalogForCar(brand="",model="",engine="") {
+  const b=norm(brand), m=norm(model), e=norm(engine);
+  return catalog.filter(item=>hasValue(item.marks,b)&&modelMatches(item,m)&&hasValue(item.engine,e));
+}
+
+function currentCarBase() {
+  const b=norm($("#brand")?.value), m=norm($("#model")?.value);
+  if (!b || !m) return [];
+  return catalog.filter(item=>hasValue(item.marks,b)&&modelMatches(item,m));
 }
 
 function populateBrands() {
-  const set = new Set();
-
-  catalog.forEach(x => {
-    splitValues(x.marks).forEach(v => set.add(v));
-  });
-
-  const el = $("#brand");
-
-  el.innerHTML =
-    '<option value="">Марка</option>' +
-    [...set]
-      .sort((a,b) => a.localeCompare(b, "ru"))
-      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
-        escapeHtml(v.toUpperCase()) + "</option>")
-      .join("");
-
-  $("#model").innerHTML = '<option value="">Сначала выберите марку</option>';
-  $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
+  const set=new Set();
+  catalog.forEach(x=>splitValues(x.marks).forEach(v=>set.add(v)));
+  const el=$("#brand"); if(!el) return;
+  el.innerHTML='<option value="">Марка</option>'+[...set].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v.toUpperCase())+'">'+escapeHtml(v.toUpperCase())+'</option>').join("");
+  populateModels();
 }
 
 function populateModels() {
-  const b = norm($("#brand").value);
-  const set = new Set();
-
-  if (!b) {
-    $("#model").innerHTML = '<option value="">Сначала выберите марку</option>';
-    $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
-    return;
-  }
-
-  // Модель попадает сюда только если есть реальный товар:
-  // BMW + эта модель + quantity > 0.
-  catalogForCar(b).forEach(x => {
-    splitValues(x.models).forEach(v => set.add(v));
-  });
-
-  $("#model").innerHTML =
-    '<option value="">Модель</option>' +
-    [...set]
-      .sort((a,b) => a.localeCompare(b, "ru"))
-      .slice(0, 500)
-      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
-        escapeHtml(v.toUpperCase()) + "</option>")
-      .join("");
-
-  $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
+  const b=norm($("#brand")?.value), list=document.querySelector("#modelOptions"), input=$("#model");
+  if(!list||!input) return;
+  const set=new Set();
+  if(b) catalogForCar(b).forEach(x=>splitValues(x.models).forEach(v=>set.add(v)));
+  list.innerHTML=[...set].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,1000).map(v=>'<option value="'+escapeHtml(v)+'"></option>').join("");
+  input.value="";
+  if($("#engine")) $("#engine").innerHTML='<option value="">Двигатель — любой</option>';
+  if($("#volume")) $("#volume").value="";
+  if($("#fuel")) $("#fuel").innerHTML='<option value="">Топливо — любое</option>';
+  if($("#body")) $("#body").innerHTML='<option value="">Кузов — любой</option>';
 }
 
-function populateEngines() {
-  const b = norm($("#brand").value);
-  const m = norm($("#model").value);
-  const set = new Set();
-
-  if (!b || !m) {
-    $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
-    return;
-  }
-
-  // Двигатели строятся только из реальных записей
-  // выбранной марки + выбранной модели.
-  catalogForCar(b, m).forEach(x => {
-    splitValues(x.engine).forEach(v => set.add(v));
-  });
-
-  $("#engine").innerHTML =
-    '<option value="">Двигатель</option>' +
-    [...set]
-      .sort((a,b) => a.localeCompare(b, "ru"))
-      .slice(0, 500)
-      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
-        escapeHtml(v.toUpperCase()) + "</option>")
-      .join("");
+function populateCarFilters() {
+  const rows=currentCarBase(), engineEl=$("#engine"), fuelEl=$("#fuel"), bodyEl=$("#body");
+  const engines=new Set(), fuels=new Set(), bodies=new Set();
+  rows.forEach(x=>{splitValues(x.engine).forEach(v=>engines.add(v)); const f=fuelType(x), b=bodyType(x); if(f) fuels.add(f); if(b) bodies.add(b);});
+  if(engineEl) engineEl.innerHTML='<option value="">Двигатель — любой</option>'+[...engines].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,500).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
+  if(fuelEl) fuelEl.innerHTML='<option value="">Топливо — любое</option>'+[...fuels].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
+  if(bodyEl) bodyEl.innerHTML='<option value="">Кузов — любой</option>'+[...bodies].sort((a,b)=>a.localeCompare(b,"ru")).map(v=>'<option value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</option>').join("");
 }
 
+function populateEngines() { populateCarFilters(); }
 /* =========================
    РЕЗУЛЬТАТЫ
 ========================= */
@@ -459,97 +472,63 @@ function searchParts(q) {
 }
 
 async function searchCar() {
-  try {
-    if (window.fullCatalogReady) await window.fullCatalogReady;
-  } catch (e) {}
+  try { if(window.fullCatalogReady) await window.fullCatalogReady; } catch(e) {}
 
-  const b = norm($("#brand").value);
-  const m = norm($("#model").value);
-  const e = norm($("#engine").value);
+  const b=norm($("#brand")?.value);
+  const m=String($("#model")?.value||"").trim();
+  const selectedEngine=String($("#engine")?.value||"").trim();
+  const selectedYear=String($("#year")?.value||"").trim();
+  const selectedVolume=String($("#volume")?.value||"").trim();
+  const selectedFuel=String($("#fuel")?.value||"").trim();
+  const selectedBody=String($("#body")?.value||"").trim();
 
-  if (!b) {
-    toast("⚠️ Выберите марку автомобиля");
-    return;
-  }
+  if(!b){toast("⚠️ Выберите марку автомобиля");return;}
+  if(!m){toast("⚠️ Введите модель автомобиля");return;}
 
-  if (!m) {
-    toast("⚠️ Выберите модель автомобиля");
-    return;
-  }
+  const matched=catalog.filter(item=>{
+    if(!hasValue(item.marks,b)) return false;
+    if(!modelMatches(item,m)) return false;
+    if(selectedEngine&&!hasValue(item.engine,selectedEngine)) return false;
+    if(selectedYear&&!yearMatches(item,selectedYear)) return false;
+    if(selectedVolume&&!volumeMatches(item,selectedVolume)) return false;
+    if(selectedFuel&&fuelType(item)!==selectedFuel) return false;
+    if(selectedBody&&bodyType(item)!==selectedBody) return false;
+    return true;
+  });
 
-  const matched = catalogForCar(b, m, e);
+  const stockList=matched.slice();
+  const stockArticles=new Set(stockList.map(x=>compact(x.catalog_number)).filter(Boolean));
 
-  // Подбор автомобиля должен работать как обычный поиск:
-  // склад + дополнительные позиции под заказ через базу кроссов.
-  // Важно: не ждём загрузки всего 300k прайса — для телефона это лишняя нагрузка.
-  const stockList = matched.slice();
-
-  const orderByArticle = new Map();
-  if (Array.isArray(window.orderCatalog)) {
-    for (const item of window.orderCatalog) {
-      const key = compact(item.catalog_number);
-      if (key && !orderByArticle.has(key)) orderByArticle.set(key, item);
+  const orderByArticle=new Map();
+  if(Array.isArray(window.orderCatalog)){
+    for(const item of window.orderCatalog){
+      const key=compact(item.catalog_number);
+      if(key&&!orderByArticle.has(key)) orderByArticle.set(key,item);
     }
   }
 
-  const orderList = [];
-  const seenOrder = new Set();
-
-  for (const stockItem of matched) {
-    const oems = String(stockItem.original_number || "")
-      .split(",")
-      .map(v => compact(v))
-      .filter(Boolean);
-
-    for (const oem of oems) {
-      const rows = window.crossData?.by_oem?.[oem] || [];
-
-      for (const row of rows) {
-        const article = compact(row.article);
-        if (!article || seenOrder.has(article)) continue;
-
-        const existing = orderByArticle.get(article);
-
-        // Если прайс уже загружен — берём реальную запись с ценой/брендом.
-        // Если ещё нет — всё равно показываем кросс как позицию "под заказ".
-        // Это особенно важно на телефоне, где 300k строк не должны блокировать поиск.
-        const item = existing
-          ? {
-              ...existing,
-              _order: true,
-              _order_brand: existing.manufacturer_parts || row.brand || "",
-              _order_oem: row.oem || stockItem.original_number || ""
-            }
-          : {
-              _order: true,
-              _order_brand: row.brand || "",
-              _order_oem: row.oem || stockItem.original_number || "",
-              catalog_number: row.article,
-              manufacturer_parts: row.brand || "",
-              name: "Деталь " + row.article,
-              original_number: row.oem || "",
-              quantity: 0,
-              price: ""
-            };
-
-        seenOrder.add(article);
-        orderList.push(item);
+  const orderList=[], seenOrder=new Set();
+  for(const stockItem of matched){
+    const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
+    for(const oem of oems){
+      const rows=window.crossData?.by_oem?.[oem]||[];
+      for(const row of rows){
+        const article=compact(row.article);
+        if(!article||stockArticles.has(article)||seenOrder.has(article)) continue;
+        const existing=orderByArticle.get(article);
+        const item=existing
+          ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
+          : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:"Деталь "+row.article,original_number:row.oem||"",quantity:0,price:""};
+        seenOrder.add(article); orderList.push(item);
       }
     }
   }
 
-  // Наш склад всегда первым, под заказ — следом.
-  // Один и тот же артикул из двух источников НЕ удаляем.
-  const list = [...stockList, ...orderList];
+  const list=[...stockList,...orderList];
+  const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
+  render(list,"Подбор: "+titleParts.join(" · "));
 
-  render(list, "Подбор по автомобилю");
-
-  setTimeout(() => {
-    document.querySelector(".results-section")?.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
-  }, 50);
+  setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
 }
 
 /* =========================
@@ -616,56 +595,20 @@ function setMode(next) {
    EVENTS
 ========================= */
 
-$("#searchBtn").onclick =
-  () => {
-    searchParts($("#search").value);
-    setTimeout(() => {
-      document.querySelector(".results-section")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start"
-      });
-    }, 50);
-  };
+$("#carBtn").onclick=searchCar;
+$("#brand").onchange=()=>populateModels();
+$("#model").oninput=()=>populateCarFilters();
+$("#year").onkeydown=e=>{if(e.key==="Enter")searchCar();};
+$("#volume").onkeydown=e=>{if(e.key==="Enter")searchCar();};
 
-$("#search").onkeydown =
-  e => {
-
-    if (e.key === "Enter") {
-      searchParts(
-        e.target.value
-      );
-    }
-  };
-
-$("#carBtn").onclick =
-  searchCar;
-
-$("#brand").onchange =
-  () => {
-
-    populateModels();
-    populateEngines();
-  };
-
-$("#model").onchange =
-  populateEngines;
-
-document
-  .querySelectorAll(".tab")
-  .forEach(x =>
-    x.onclick =
-      () =>
-        setMode(
-          x.dataset.mode
-        )
-  );
-
-$("#clearBtn").onclick =
-  () =>
-    render(
-      catalog.slice(0, 100),
-      "Каталог склада"
-    );
+$("#clearBtn").onclick=()=>{
+  if($("#brand")) $("#brand").value="";
+  if($("#model")) $("#model").value="";
+  if($("#year")) $("#year").value="";
+  if($("#volume")) $("#volume").value="";
+  populateModels();
+  render([],"Выберите автомобиль");
+};
 
 /* =========================
    THEME
