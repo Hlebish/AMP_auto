@@ -244,59 +244,84 @@
     const rows = crossRowsForQuery(q);
     if (!rows.length) return [];
 
-    // Кроссы могут содержать наши AMParts-артикулы.
-    // Они не должны становиться "ПОД ЗАКАЗ": если товара нет на складе,
-    // показываем честный статус "НЕТ В НАЛИЧИИ".
     const result = [];
     const seen = new Set();
     const ownStockArticles = window.ownStockArticles || new Set();
 
+    const ownRows = rows.filter(row =>
+      typeof window.isOwnManufacturer === "function"
+        ? window.isOwnManufacturer(row.brand || "")
+        : compact(row.brand || "") === "amparts"
+    );
+
+    const ownRow = ownRows.find(row =>
+      ownStockArticles.has(compact(row.article || ""))
+    ) || ownRows[0] || null;
+
+    const ownArticle = compact(ownRow?.article || "");
+
+    // Сначала показываем нашу позицию как "НЕТ В НАЛИЧИИ",
+    // если она существует как AMParts, но на складе её нет.
+    if (ownRow && ownArticle && !ownStockArticles.has(ownArticle)) {
+      const ownUnavailableMap = new Map(
+        (window.ampartsUnavailableCatalog || [])
+          .map(item => [compact(item.catalog_number), item])
+      );
+
+      const existing = ownUnavailableMap.get(ownArticle);
+      const item = existing
+        ? {
+            ...existing,
+            _unavailable: true,
+            _order: false,
+            _amparts: true
+          }
+        : (
+            typeof window.makeUnavailableOwnPart === "function"
+              ? window.makeUnavailableOwnPart(ownRow, q)
+              : {
+                  _unavailable: true,
+                  _order: false,
+                  _amparts: true,
+                  catalog_number: ownRow.article,
+                  manufacturer_parts: ownRow.brand || "AMPARTS",
+                  original_number: ownRow.oem || q,
+                  name: ownRow.article,
+                  quantity: 0,
+                  price: ""
+                }
+          );
+
+      result.push(item);
+      seen.add(ownArticle);
+    }
+
+    // Затем показываем реальные внешние варианты, которые можно заказать.
     for (const row of rows) {
       const key = compact(row.article);
       if (!key || seen.has(key)) continue;
-      seen.add(key);
 
-      const ownByArticle = ownStockArticles.has(key);
       const ownByManufacturer =
         typeof window.isOwnManufacturer === "function"
           ? window.isOwnManufacturer(row.brand || "")
           : compact(row.brand || "") === "amparts";
 
-      if (ownByArticle) {
-        // Наш склад уже должен вывести эту деталь зелёной.
-        continue;
-      }
-
-      if (ownByManufacturer) {
-        result.push(
-          typeof window.makeUnavailableOwnPart === "function"
-            ? window.makeUnavailableOwnPart(row, q)
-            : {
-                _unavailable: true,
-                _order: false,
-                _amparts: true,
-                catalog_number: row.article,
-                manufacturer_parts: row.brand || "AMPARTS",
-                original_number: row.oem || q,
-                name: row.article,
-                quantity: 0,
-                price: ""
-              }
-        );
-        continue;
-      }
+      if (ownByManufacturer) continue;
 
       result.push({
         _order: true,
         _order_brand: row.brand || "",
         _order_oem: row.oem || q,
+        _order_for_article: ownArticle || "",
         catalog_number: row.article,
         manufacturer_parts: row.brand || "",
         original_number: row.oem || q,
-        name: "Деталь " + row.article,
+        name: row.article,
         marks: row.oem_brand ? row.oem_brand.toUpperCase() : "",
         quantity: "",
       });
+
+      seen.add(key);
     }
 
     return result;
