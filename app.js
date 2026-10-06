@@ -380,6 +380,84 @@ function canonicalModel(value) {
     .trim();
 }
 
+function cleanPartName(value) {
+  let text = String(value ?? "").trim();
+  for (let i = 0; i < 3; i++) {
+    const next = text.replace(/^\s*деталь\b\s*[:№#-]?\s*/iu, "").trim();
+    if (next === text) break;
+    text = next;
+  }
+  return text;
+}
+
+function modelTemplateKey(value) {
+  const code = modelCode(value);
+  const family = compact(modelFamily(value));
+  return (code ? code + "|" : "") + family;
+}
+
+function prettyModelFamily(value) {
+  const family = modelFamily(value);
+  if (!family) return "";
+  return family.split(/\s+/).filter(Boolean).map(token => {
+    if (/^[a-z]{1,3}-[a-z0-9]+$/i.test(token)) {
+      const [head, ...rest] = token.split("-");
+      return head.toUpperCase() + (rest.length ? "-" + rest.join("-") : "");
+    }
+    if (/^[a-z]+\d+[a-z0-9]*$/i.test(token) && token.length <= 6) return token.toUpperCase();
+    if (/^[a-z]{2,3}$/i.test(token)) return token.toUpperCase();
+    return token.charAt(0).toUpperCase() + token.slice(1);
+  }).join(" ");
+}
+
+function modelTemplateLabel(value) {
+  const family = prettyModelFamily(value);
+  const m = String(value ?? "").match(/\(([^)]{1,80})\)/);
+  const code = m ? m[1].trim().replace(/\s+/g, " ") : "";
+  if (!family) return code ? "(" + code + ")" : String(value ?? "").trim();
+  return code ? family + " (" + code + ")" : family;
+}
+
+function modelTemplateScore(value) {
+  const raw = String(value ?? "");
+  let score = raw.length;
+  if (/\b(sedan|saloon|wagon|touring|variant|estate|combi|hatchback|hatch|coupe|cabrio|convertible|van|mpv|pickup|cab)\b/i.test(raw)) score += 50;
+  if (/\b(mk|gen|generation|поколение)\b/i.test(raw)) score += 30;
+  if (/\b(i{1,3}|iv|v)\b/i.test(raw)) score += 15;
+  return score;
+}
+
+function modelTemplatesForBrand(brand) {
+  const b = norm(brand);
+  const groups = new Map();
+  if (!b) return [];
+  catalog.forEach(item => {
+    if (!hasValue(item.marks, b)) return;
+    splitValues(item.models).forEach(raw => {
+      const key = modelTemplateKey(raw);
+      if (!key) return;
+      const current = groups.get(key);
+      if (!current || modelTemplateScore(raw) < modelTemplateScore(current.raw)) {
+        groups.set(key, { key, raw, label: modelTemplateLabel(raw) });
+      }
+    });
+  });
+  return [...groups.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" })
+  );
+}
+
+function cleanModelList(value) {
+  const seen = new Set();
+  const out = [];
+  splitValues(value).forEach(raw => {
+    const key = modelTemplateKey(raw) || compact(raw);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(modelTemplateLabel(raw));
+  });
+  return out;
+}
 function modelMatches(item, query) {
   const q = canonicalModel(query);
   if (!q) return true;
@@ -451,35 +529,33 @@ function populateModels(resetValue = true) {
   if (!el) return;
 
   const current = String(el.value || "");
-  const set = new Set();
-
-  if (b) {
-    catalogForCar(b).forEach(x =>
-      splitValues(x.models).forEach(v => set.add(v))
-    );
-  }
+  const templates = modelTemplatesForBrand(b);
 
   el.innerHTML =
     '<option value="">Модель</option>' +
-    [...set]
-      .sort((a, b) => a.localeCompare(b, "ru"))
+    templates
       .slice(0, 1000)
-      .map(v =>
-        '<option value="' + escapeHtml(v) + '">' +
-        escapeHtml(v) +
+      .map(t =>
+        '<option value="' + escapeHtml(t.raw) + '" data-model-template="' +
+        escapeHtml(t.key) + '">' +
+        escapeHtml(t.label) +
         '</option>'
       )
       .join("");
 
-  if (!resetValue && current && [...el.options].some(o => norm(o.value) === norm(current))) {
-    el.value = current;
+  if (!resetValue && current) {
+    const currentKey = modelTemplateKey(current);
+    const option = [...el.options].find(o =>
+      modelTemplateKey(o.value) === currentKey ||
+      norm(o.value) === norm(current)
+    );
+    el.value = option ? option.value : "";
   } else {
     el.value = "";
   }
 
   populateCarFilters();
 }
-
 function populateYears(rows, resetValue = true) {
   const el = $("#year");
   if (!el) return;
@@ -643,8 +719,10 @@ function render(
             <div>
               <div class="result-name">
                 ${escapeHtml(
-                  x.name ||
-                  x.catalog_number
+                  cleanPartName(
+                    x.name ||
+                    x.catalog_number
+                  )
                 )}
               </div>
 
@@ -706,8 +784,7 @@ function render(
                   x.models
                     ? " · " +
                       escapeHtml(
-                        String(x.models)
-                          .split(",")
+                        cleanModelList(x.models)
                           .slice(0, 3)
                           .join(", ")
                       )
