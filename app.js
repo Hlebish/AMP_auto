@@ -493,7 +493,7 @@ function render(
           );
 
         return `
-          <article class="result-card ${x._order ? "order-result" : ""}">
+          <article class="result-card ${x._order ? "order-result" : x._unavailable ? "unavailable-result" : ""}">
             <div>
               <div class="result-name">
                 ${escapeHtml(
@@ -521,10 +521,13 @@ function render(
                 <br>
 
                 ${
-                  x._order
-                    ? '<span class="order-badge">🟠 ПОД ЗАКАЗ</span><br>Производитель: ' +
-                      escapeHtml(x._order_brand || "Не указан")
-                    : '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
+                  x._unavailable
+                    ? '<span class="unavailable-badge">🔴 НЕТ В НАЛИЧИИ</span><br>Производитель: ' +
+                      escapeHtml(x.manufacturer_parts || "AMPARTS")
+                    : x._order
+                      ? '<span class="order-badge">🟠 ПОД ЗАКАЗ</span><br>Производитель: ' +
+                        escapeHtml(x._order_brand || "Не указан")
+                      : '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
                 }
 
                 <br>
