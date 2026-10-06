@@ -1,7 +1,9 @@
 {
-  "version": "20261006-excel-fixed",
-  "source": "products_1_8125(3).xlsx",
-  "count": 8619,
-  "chunks": 18,
-  "chunkSize": 500
+  "version": "20261006-stock-v2",
+  "source": "products_1_8125(4).xlsx",
+  "count": 2739,
+  "uniqueArticles": 2342,
+  "chunks": 6,
+  "chunkSize": 500,
+  "quantityRule": "quantity > 0"
 }

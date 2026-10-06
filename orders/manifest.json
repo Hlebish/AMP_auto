@@ -1,0 +1,10 @@
+{
+  "version": "20261006-order-v2",
+  "source": "11 external price lists",
+  "count": 307935,
+  "chunks": 62,
+  "chunkSize": 5000,
+  "quantityRule": "always order / q=0",
+  "stockOverlapArticles": 766,
+  "stockAndOrderOverlapDisplayedSeparately": true
+}
