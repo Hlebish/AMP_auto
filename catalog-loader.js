@@ -86,19 +86,29 @@
   }
 
   async function downloadCatalog(manifest) {
-    const rows = [];
-    const count = Number(manifest.chunks || 0);
+    const loading = window.startAppLoading?.("Загружаем складской каталог…");
+    try {
+      const rows = [];
+      const count = Number(manifest.chunks || 0);
 
-    for (let i = 0; i < count; i++) {
-      const name = "catalog/catalog-" + String(i).padStart(2, "0") + ".json";
-      const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
-      if (!res.ok) throw new Error(name + ": HTTP " + res.status);
-      const part = await res.json();
-      if (Array.isArray(part)) {
-        for (const row of part) rows.push(unpack(row));
+      for (let i = 0; i < count; i++) {
+        loading?.setText(
+          "Загружаем складской каталог… " +
+          Math.min(i + 1, count) + "/" + count
+        );
+
+        const name = "catalog/catalog-" + String(i).padStart(2, "0") + ".json";
+        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+        const part = await res.json();
+        if (Array.isArray(part)) {
+          for (const row of part) rows.push(unpack(row));
+        }
       }
+      return rows;
+    } finally {
+      loading?.stop();
     }
-    return rows;
   }
 
   function isAmpartsManufacturer(value) {
@@ -129,20 +139,30 @@
   }
 
   async function downloadOrders(manifest) {
-    const rows = [];
-    const count = Number(manifest.chunks || 0);
-    for (let i = 0; i < count; i++) {
-      const name = "orders/order-" + String(i).padStart(3, "0") + ".json";
-      const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
-      if (!res.ok) throw new Error(name + ": HTTP " + res.status);
-      const part = await res.json();
-      if (Array.isArray(part)) {
-        for (const row of part) rows.push(unpackOrder(row));
+    const loading = window.startAppLoading?.("Загружаем прайс под заказ…");
+    try {
+      const rows = [];
+      const count = Number(manifest.chunks || 0);
+      for (let i = 0; i < count; i++) {
+        loading?.setText(
+          "Загружаем прайс под заказ… " +
+          Math.min(i + 1, count) + "/" + count
+        );
+
+        const name = "orders/order-" + String(i).padStart(3, "0") + ".json";
+        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+        const part = await res.json();
+        if (Array.isArray(part)) {
+          for (const row of part) rows.push(unpackOrder(row));
+        }
+        // Не держим главный поток занятым всеми 62 чанками подряд.
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
-      // Не держим главный поток занятым всеми 62 чанками подряд.
-      await new Promise(resolve => setTimeout(resolve, 0));
+      return rows;
+    } finally {
+      loading?.stop();
     }
-    return rows;
   }
 
   function installOrders(rows, silent = false) {
@@ -232,31 +252,41 @@
   }
 
   async function downloadCrossDatabase(manifest) {
-    const by_oem = {};
-    const by_article = {};
-    const count = Number(manifest.chunks || 0);
+    const loading = window.startAppLoading?.("Загружаем базу кроссов…");
+    try {
+      const by_oem = {};
+      const by_article = {};
+      const count = Number(manifest.chunks || 0);
 
-    for (let i = 0; i < count; i++) {
-      const name = "crosses/cross-" + String(i).padStart(2, "0") + ".json";
-      const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
-      if (!res.ok) throw new Error(name + ": HTTP " + res.status);
-      const part = await res.json();
-      if (!Array.isArray(part)) continue;
+      for (let i = 0; i < count; i++) {
+        loading?.setText(
+          "Загружаем базу кроссов… " +
+          Math.min(i + 1, count) + "/" + count
+        );
 
-      for (const x of part) {
-        const oem = compact(x.o || "");
-        const article = compact(x.a || "");
-        const row = {
-          article: x.a || "",
-          brand: x.b || "",
-          oem: x.o || "",
-          oem_brand: x.ob || ""
-        };
-        if (oem) (by_oem[oem] ||= []).push(row);
-        if (article) (by_article[article] ||= []).push(row);
+        const name = "crosses/cross-" + String(i).padStart(2, "0") + ".json";
+        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+        const part = await res.json();
+        if (!Array.isArray(part)) continue;
+
+        for (const x of part) {
+          const oem = compact(x.o || "");
+          const article = compact(x.a || "");
+          const row = {
+            article: x.a || "",
+            brand: x.b || "",
+            oem: x.o || "",
+            oem_brand: x.ob || ""
+          };
+          if (oem) (by_oem[oem] ||= []).push(row);
+          if (article) (by_article[article] ||= []).push(row);
+        }
       }
+      return { by_oem, by_article };
+    } finally {
+      loading?.stop();
     }
-    return { by_oem, by_article };
   }
 
   function installCatalog(rows, silent = false) {
@@ -366,10 +396,13 @@
     if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) return true;
     if (orderLoadPromise) return orderLoadPromise;
 
+    const loading = window.startAppLoading?.("Готовим товары под заказ…");
+
     if (!activeOrderManifest) {
       try {
         activeOrderManifest = await getManifest("orders/manifest.json");
       } catch (e) {
+        loading?.stop();
         console.warn("AMP Auto order manifest:", e);
         return false;
       }
@@ -380,6 +413,12 @@
         const key = orderKey(activeOrderManifest);
         const cached = await idbGet(ORDER_STORE, key);
 
+        loading?.setText(
+          cached
+            ? "Готовим товары под заказ из кэша…"
+            : "Загружаем прайс под заказ…"
+        );
+
         let rows = cached && Array.isArray(cached.rows)
           ? cached.rows
           : await downloadOrders(activeOrderManifest);
@@ -387,6 +426,7 @@
         // Даём браузеру отрисовать интерфейс между большими порциями.
         // Если прайс свежий — сохраняем его, но не блокируем UI.
         if (!cached) {
+          loading?.setText("Сохраняем прайс под заказ…");
           await idbPut(ORDER_STORE, {
             key,
             version: activeOrderManifest.version,
@@ -394,6 +434,7 @@
           });
         }
 
+        loading?.setText("Индексируем товары под заказ…");
         installOrders(rows, true);
         window.orderReady = Promise.resolve(true);
         return true;
@@ -401,6 +442,8 @@
         console.warn("AMP Auto lazy order catalog load:", e);
         window.orderReady = Promise.resolve(false);
         return false;
+      } finally {
+        loading?.stop();
       }
     })();
 
@@ -417,10 +460,13 @@
     }
     if (crossLoadPromise) return crossLoadPromise;
 
+    const loading = window.startAppLoading?.("Готовим базу кроссов…");
+
     if (!activeCrossManifest) {
       try {
         activeCrossManifest = await getManifest("crosses/manifest.json");
       } catch (e) {
+        loading?.stop();
         console.warn("AMP Auto cross manifest:", e);
         return false;
       }
@@ -430,11 +476,18 @@
       try {
         const key = crossKey(activeCrossManifest);
         const cached = await idbGet(CROSS_STORE, key);
+        loading?.setText(
+          cached
+            ? "Загружаем базу кроссов из кэша…"
+            : "Загружаем базу кроссов…"
+        );
+
         let data = cached && cached.data
           ? cached.data
           : await downloadCrossDatabase(activeCrossManifest);
 
         if (!cached) {
+          loading?.setText("Сохраняем базу кроссов…");
           await idbPut(CROSS_STORE, {
             key,
             version: activeCrossManifest.version,
@@ -449,6 +502,8 @@
         console.warn("AMP Auto cross database load:", e);
         window.crossReady = Promise.resolve(false);
         return false;
+      } finally {
+        loading?.stop();
       }
     })();
 
@@ -456,6 +511,8 @@
   }
 
   window.ensureCrossDatabase = ensureCrossDatabase;
+
+  const bootLoading = window.startAppLoading?.("Проверяем каталог…");
 
   window.fullCatalogReady = (async () => {
     try {
@@ -479,12 +536,15 @@
         return true;
       }
 
+      bootLoading?.setText("Загружаем каталог…");
       await refreshIfNeeded(manifest, crossManifest, orderManifest);
       return true;
     } catch (e) {
       console.error("AMP Auto catalog cache failed:", e);
       toast("⚠️ Не удалось загрузить каталог");
       return false;
+    } finally {
+      bootLoading?.stop();
     }
   })();
 })();
