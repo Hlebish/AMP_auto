@@ -256,10 +256,22 @@ function bodyType(item) {
   return "";
 }
 
+function canonicalModel(value) {
+  let s = norm(value);
+  // В источниках одна и та же генерация может называться, например,
+  // "3 II (BL)" и "3 (BL)". Для подбора считаем их одной моделью.
+  s = s.replace(/\\s+(i{1,3}|iv|v)\\s+(?=\\([^)]*\\))/g, " ");
+  s = s.replace(/\\s+/g, " ").trim();
+  return s;
+}
+
 function modelMatches(item,query) {
-  const q=norm(query);
+  const q=canonicalModel(query);
   if (!q) return true;
-  return splitValues(item.models).some(v=>{const n=norm(v); return n===q || n.includes(q);});
+  return splitValues(item.models).some(v=>{
+    const n=canonicalModel(v);
+    return n===q || n.includes(q) || q.includes(n);
+  });
 }
 
 function catalogForCar(brand="",model="",engine="") {
