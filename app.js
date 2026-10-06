@@ -749,7 +749,7 @@ function render(
           );
 
         return `
-          <article class="result-card">
+          <article class="result-card ${x._order ? "order-result" : ""}">
             <div>
               <div class="result-name">
                 ${escapeHtml(
@@ -770,8 +770,18 @@ function render(
 
                 ${escapeHtml(
                   x.manufacturer_parts ||
+                  x._order_brand ||
                   ""
                 )}
+
+                <br>
+
+                ${
+                  x._order
+                    ? '<span class="order-badge">🟠 ПОД ЗАКАЗ</span><br>Производитель: ' +
+                      escapeHtml(x._order_brand || "Не указан")
+                    : '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
+                }
 
                 <br>
 
@@ -779,6 +789,7 @@ function render(
                 ${escapeHtml(
                   String(
                     x.original_number ||
+                    x._order_oem ||
                     ""
                   )
                     .split(",")
@@ -786,12 +797,17 @@ function render(
                     .join(", ")
                 )}
 
-                <br>
+                ${
+                  x._order
+                    ? "<br>Кросс: " + escapeHtml(x._order_oem || "")
+                    : ""
+                }
 
-                Авто:
-                ${escapeHtml(
-                  x.marks || ""
-                )}
+                ${
+                  x.marks
+                    ? "<br>Авто: " + escapeHtml(x.marks)
+                    : ""
+                }
 
                 ${
                   x.models
@@ -805,21 +821,14 @@ function render(
                     : ""
                 }
 
-                <br>
-
-                <span class="qty">
-                  В наличии:
-                  ${escapeHtml(qty)}
-                </span>
-
                 ${
-                  x.price
-                    ? " · " +
-                      Number(x.price)
-                        .toLocaleString(
-                          "uk-UA"
-                        ) +
-                      " ₴"
+                  !x._order
+                    ? '<br><span class="qty">В наличии: ' +
+                      escapeHtml(qty) +
+                      (x.price
+                        ? " · " + Number(x.price).toLocaleString("uk-UA") + " ₴"
+                        : "") +
+                      "</span>"
                     : ""
                 }
 
