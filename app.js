@@ -1,4 +1,5 @@
-const firebaseConfig={apiKey:"AIzaSyAFd_IPlACJlpxeGsNE7Iq3dQm-VYu5Ba4",authDomain:"warehouse-map-b6ed6.firebaseapp.com",databaseURL:"https://warehouse-map-b6ed6-default-rtdb.europe-west1.firebasedatabase.app",projectId:"warehouse-map-b6ed6",storageBucket:"warehouse-map-b6ed6.firebasestorage.app",messagingSenderId:"196261680344",appId:"1:196261680344:web:fdd54671cf57690744f3ad"};
+const ampFirebaseConfig={apiKey:"AIzaSyBHAc4Fra0XG8wtqwMjH_kk8T4rNhQxvMw",authDomain:"amp-auto.firebaseapp.com",projectId:"amp-auto",storageBucket:"amp-auto.firebasestorage.app",messagingSenderId:"305575986701",appId:"1:305575986701:web:424e1d1e14a2855274f744"};
+const warehouseFirebaseConfig={apiKey:"AIzaSyAFd_IPlACJlpxeGsNE7Iq3dQm-VYu5Ba4",authDomain:"warehouse-map-b6ed6.firebaseapp.com",databaseURL:"https://warehouse-map-b6ed6-default-rtdb.europe-west1.firebasedatabase.app",projectId:"warehouse-map-b6ed6",storageBucket:"warehouse-map-b6ed6.firebasestorage.app",messagingSenderId:"196261680344",appId:"1:196261680344:web:fdd54671cf57690744f3ad"};
 const $=s=>document.querySelector(s), norm=v=>String(v??"").toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-яіїєґ0-9]+/g," ").trim();
 const compact=v=>norm(v).replace(/\s+/g,"");
 const escapeHtml=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
@@ -76,7 +77,7 @@ function loadCatalogVersion(){try{return localStorage.getItem("amp_auto_catalog_
 function arrayBufferFromResponse(r){return r.arrayBuffer()}
 async function downloadCatalogFromStorage(){
   try{
-    const ref=firebase.storage().ref("catalog/products.xlsx");
+    const ref=ampStorage.ref("catalog/products.xlsx");
     const meta=await ref.getMetadata();
     const version=String(meta.updated||meta.generation||"");
     const localVersion=loadCatalogVersion();
@@ -109,7 +110,7 @@ async function downloadCatalogFromStorage(){
   }
 }
 async function uploadCatalogToStorage(file){
-  const ref=firebase.storage().ref("catalog/products.xlsx");
+  const ref=ampStorage.ref("catalog/products.xlsx");
   await ref.put(file,{contentType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",cacheControl:"no-cache"});
   return downloadCatalogFromStorage();
 }
@@ -223,7 +224,7 @@ window.selectAddress=selectAddress;
 
 async function loadWarehouse(){
  try{
-   const snap=await firebase.database().ref("warehouse/cells").once("value");
+   const snap=await warehouseDb.ref("warehouse/cells").once("value");
    warehouse=snap.val()||{};
    if(results.length)buildAddresses(results);
  }catch(e){console.error(e);$("#mapStatus").textContent="Не удалось получить карту склада";}
@@ -253,8 +254,11 @@ if(localStorage.getItem("amp_auto_dark")==="1")document.body.classList.add("dark
 loadCatalog();initStats();populateBrands();
 if(catalog.length)render(catalog.slice(0,100),"Каталог склада");else render([],"Каталог склада");
 
-firebase.initializeApp(firebaseConfig);
-const auth=firebase.auth();
+const ampApp=firebase.initializeApp(ampFirebaseConfig);
+const warehouseApp=firebase.initializeApp(warehouseFirebaseConfig,"warehouse");
+const auth=firebase.auth(ampApp);
+const ampStorage=firebase.storage(ampApp);
+const warehouseDb=firebase.database(warehouseApp);
 $("#loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("#loginError").textContent=e.message||"Ошибка входа"}};
 $("#logoutBtn").onclick=()=>auth.signOut();
 auth.onAuthStateChanged(async user=>{
