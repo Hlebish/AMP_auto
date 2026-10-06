@@ -32,6 +32,24 @@ let catalog = [];
 let results = [];
 let mode = "parts";
 
+let crossData = { by_oem: {}, by_article: {} };
+window.crossReady = (async function loadCrossDatabase() {
+  try {
+    const response = await fetch("crosses.json?v=20261006", { cache: "no-store" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const data = await response.json();
+    if (data && (data.by_oem || data.by_article)) {
+      crossData = data;
+      window.crossData = crossData;
+      return true;
+    }
+  } catch (e) {
+    console.warn("Cross database unavailable:", e);
+  }
+  window.crossData = crossData;
+  return false;
+})();
+
 const aliases = {
   bmw: ["bmw", "бмв"],
   audi: ["audi", "ауди", "ауді"],
