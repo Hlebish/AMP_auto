@@ -25,3 +25,14 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 
 /* Stock / order result states */
 .stock-badge,.order-badge{display:inline-block;font-weight:900;font-size:11px;letter-spacing:.3px;border-radius:7px;padding:3px 7px;margin:2px 0 3px}.stock-badge{background:#e7f7e9;color:#21852b}.order-badge{background:#fff1d8;color:#a86100}.order-result{border-color:#f0d7a7;background:linear-gradient(90deg,var(--card),#fffaf0)}.order-result .result-name{color:#9a6100}.dark .stock-badge{background:#17371c;color:#78dc82}.dark .order-badge{background:#3d2d13;color:#ffc866}.dark .order-result{background:linear-gradient(90deg,var(--card),#211b10);border-color:#634d27}
+
+/* Vehicle picker redesign */
+.picker-title{font-size:18px;font-weight:900;padding:4px 5px 8px}
+.vehicle-picker{padding:14px}
+#carMode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:4px}
+#carMode input,#carMode select{min-width:0}
+#carMode #carBtn{grid-column:1/-1;width:100%;padding:14px 18px}
+.picker-note{font-size:11px;color:var(--muted);line-height:1.45;padding:10px 4px 2px}
+.picker-note b{color:var(--text)}
+@media(min-width:1050px){#carMode{grid-template-columns:1.05fr 1.2fr .75fr 1.35fr .75fr 1fr 1fr}#carMode #carBtn{grid-column:1/-1}}
+@media(max-width:560px){#carMode{grid-template-columns:1fr}#carMode #carBtn{grid-column:auto}.picker-title{font-size:17px}}
