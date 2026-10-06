@@ -999,7 +999,7 @@ $("#searchBtn").onclick =
   () => {
     searchParts($("#search").value);
     setTimeout(() => {
-      document.getElementById("results-section")?.scrollIntoView({
+      document.querySelector(".results-section")?.scrollIntoView({
         behavior: "smooth",
         block: "start"
       });
