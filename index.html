@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AMP Auto — подбор автозапчастей</title>
+<meta name="description" content="Подбор автозапчастей по автомобилю, артикулу и OEM. Только наличие на складе AMP.">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+<div id="login" class="login">
+  <div class="login-card">
+    <div class="logo-mark">AMP<span>Auto</span></div>
+    <h1>Подбор автозапчастей</h1>
+    <p>Войдите через Google, чтобы использовать актуальные адреса склада.</p>
+    <button id="loginBtn" class="primary">Войти через Google</button>
+    <small id="loginError"></small>
+  </div>
+</div>
+
+<header class="header">
+  <div class="brand"><div class="logo-mark">AMP<span>Auto</span></div><small>Складской подбор</small></div>
+  <div class="header-actions">
+    <button id="themeBtn" class="icon-btn" title="Тёмная тема">☾</button>
+    <button id="uploadBtn" class="secondary">📥 Каталог Excel</button>
+    <input id="excelInput" type="file" accept=".xlsx,.xls" hidden>
+    <button id="logoutBtn" class="secondary">Выйти</button>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div>
+    <span class="eyebrow">AMP AUTO</span>
+    <h1>Найди деталь.<br><b>Сразу узнай, где она лежит.</b></h1>
+    <p>Поиск по артикулу, OEM, марке, модели, двигателю или названию. Показываем только то, что есть на складе.</p>
+  </div>
+  <div class="search-box">
+    <div class="tabs">
+      <button class="tab active" data-mode="parts">🔎 Деталь</button>
+      <button class="tab" data-mode="car">🚗 По автомобилю</button>
+    </div>
+    <div id="partsMode" class="mode">
+      <input id="search" autocomplete="off" placeholder="BMW, APMZ0316, 622544633R, бампер…">
+      <button id="searchBtn" class="primary">Найти</button>
+    </div>
+    <div id="carMode" class="mode hidden">
+      <select id="brand"><option value="">Марка</option></select>
+      <select id="model"><option value="">Модель</option></select>
+      <select id="engine"><option value="">Двигатель</option></select>
+      <button id="carBtn" class="primary">Подобрать</button>
+    </div>
+    <div class="hint">Можно писать на русском, украинском или английском. Артикулы ищутся строго.</div>
+  </div>
+</section>
+
+<section class="stats" id="stats">
+  <div><b id="stockCount">0</b><span>артикулов в наличии</span></div>
+  <div><b id="brandCount">0</b><span>марок</span></div>
+  <div><b id="addressCount">—</b><span>адресов найдено на карте</span></div>
+</section>
+
+<section class="results-section">
+  <div class="section-head"><div><span class="eyebrow">РЕЗУЛЬТАТЫ</span><h2 id="resultTitle">Каталог склада</h2></div><button id="clearBtn" class="secondary">Очистить</button></div>
+  <div id="results" class="results"></div>
+</section>
+
+<section class="map-section">
+  <div class="section-head"><div><span class="eyebrow">СКЛАД</span><h2>Где лежит деталь</h2></div><span id="mapStatus" class="muted">Выберите результат</span></div>
+  <div class="map-wrap">
+    <div class="warehouse-plan" id="warehousePlan">
+      <img src="https://raw.githubusercontent.com/Hlebish/warehouse-map/main/warehouse-plan.png" alt="План склада">
+      <div id="markers"></div>
+    </div>
+  </div>
+</section>
+
+<section class="grid-section">
+  <div class="section-head"><div><span class="eyebrow">ЯЧЕЙКИ</span><h2>Найденные адреса</h2></div></div>
+  <div id="addressGrid" class="address-grid"></div>
+</section>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
