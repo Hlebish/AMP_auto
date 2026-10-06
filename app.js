@@ -19,7 +19,10 @@ const escapeHtml = v =>
   }[m]));
 
 let catalog = [];
+let orderCatalog = [];
 let results = [];
+window.orderCatalog = orderCatalog;
+window.orderReady = Promise.resolve(false);
 let mode = "parts";
 
 let crossData = { by_oem: {}, by_article: {} };
