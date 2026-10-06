@@ -51,6 +51,45 @@ const norm = v =>
 
 const compact = v => norm(v).replace(/\s+/g, "");
 
+function isOwnManufacturer(value) {
+  const key = compact(value);
+  return key === "amparts" || key.startsWith("amparts");
+}
+
+function isOwnArticle(article, manufacturer = "") {
+  const key = compact(article);
+  if (!key) return false;
+  if (isOwnManufacturer(manufacturer)) return true;
+  return !!window.ownStockArticles?.has(key);
+}
+
+function makeUnavailableOwnPart(row, fallbackOem = "") {
+  const article = String(row?.article || row?.catalog_number || "").trim();
+  const manufacturer = String(
+    row?.brand ||
+    row?.manufacturer_parts ||
+    row?._order_brand ||
+    "AMPARTS"
+  ).trim();
+
+  return {
+    _unavailable: true,
+    _order: false,
+    _amparts: true,
+    source: "amparts",
+    catalog_number: article,
+    manufacturer_parts: manufacturer || "AMPARTS",
+    name: row?.name || ("Деталь " + article),
+    original_number: row?.oem || row?._order_oem || fallbackOem || "",
+    quantity: 0,
+    price: row?.price ?? ""
+  };
+}
+
+window.isOwnManufacturer = isOwnManufacturer;
+window.isOwnArticle = isOwnArticle;
+window.makeUnavailableOwnPart = makeUnavailableOwnPart;
+
 const escapeHtml = v =>
   String(v ?? "").replace(/[&<>"']/g, m => ({
     "&": "&amp;",
