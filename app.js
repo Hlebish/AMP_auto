@@ -1196,3 +1196,133 @@ auth.onAuthStateChanged(
     }
   }
 );
+
+
+/* =========================
+   FIRESTORE CATALOG SYNC
+   Надёжная доставка каталога на телефоны/новые устройства.
+========================= */
+const CATALOG_CHUNK_SIZE = 250;
+const CATALOG_META_DOC = "catalog/meta";
+const CATALOG_CHUNKS = "catalogChunks";
+
+let ampFirestore = null;
+
+function getAmpFirestore() {
+  if (!ampFirestore) {
+    ampFirestore = firebase.firestore(ampApp);
+  }
+  return ampFirestore;
+}
+
+async function saveCatalogToFirestore(rows) {
+  const db = getAmpFirestore();
+  const chunks = [];
+
+  for (let i = 0; i < rows.length; i += CATALOG_CHUNK_SIZE) {
+    chunks.push(rows.slice(i, i + CATALOG_CHUNK_SIZE));
+  }
+
+  const metaRef = db.doc(CATALOG_META_DOC);
+  const oldMeta = await metaRef.get();
+  const oldCount = oldMeta.exists ? Number(oldMeta.data().chunks || 0) : 0;
+
+  for (let i = 0; i < chunks.length; i++) {
+    await db.collection(CATALOG_CHUNKS).doc(String(i)).set({
+      rows: chunks[i],
+      version: Date.now(),
+      index: i
+    });
+  }
+
+  for (let i = chunks.length; i < oldCount; i++) {
+    await db.collection(CATALOG_CHUNKS).doc(String(i)).delete();
+  }
+
+  await metaRef.set({
+    chunks: chunks.length,
+    count: rows.length,
+    version: Date.now()
+  });
+}
+
+async function loadCatalogFromFirestore() {
+  const db = getAmpFirestore();
+  const metaSnap = await db.doc(CATALOG_META_DOC).get();
+
+  if (!metaSnap.exists) return false;
+
+  const meta = metaSnap.data() || {};
+  const count = Number(meta.count || 0);
+  const chunks = Number(meta.chunks || 0);
+  const version = String(meta.version || "");
+
+  if (!chunks || !count) return false;
+
+  const docs = await Promise.all(
+    Array.from({ length: chunks }, (_, i) =>
+      db.collection(CATALOG_CHUNKS).doc(String(i)).get()
+    )
+  );
+
+  const rows = [];
+  docs.forEach(s => {
+    if (s.exists && Array.isArray(s.data().rows)) {
+      rows.push(...s.data().rows);
+    }
+  });
+
+  if (!rows.length) return false;
+
+  catalog = stockOnly(rows);
+  saveCatalog();
+  saveCatalogVersion(version);
+  initStats();
+  populateBrands();
+  render(catalog.slice(0, 100), "Каталог склада");
+  toast("✅ Каталог загружен: " + catalog.length + " артикулов");
+  return true;
+}
+
+const __originalUploadCatalogToStorage = uploadCatalogToStorage;
+
+uploadCatalogToStorage = async function(file) {
+  if (!file) throw new Error("Файл не выбран");
+  if (!auth.currentUser) throw new Error("Сначала войдите через Google");
+
+  const rows = await parseExcel(file);
+  toast("📤 Загружаю каталог…");
+
+  // Сохраняем каталог в Firestore: телефоны смогут получить его без Storage CORS.
+  await saveCatalogToFirestore(rows);
+
+  // Оставляем Excel в Storage как резервную копию.
+  try {
+    await __originalUploadCatalogToStorage(file);
+  } catch (e) {
+    console.warn("Storage backup failed, Firestore catalog is OK:", e);
+  }
+
+  catalog = rows;
+  saveCatalog();
+  initStats();
+  populateBrands();
+  render(catalog.slice(0, 100), "Каталог склада");
+  toast("✅ Каталог загружен: " + catalog.length + " артикулов");
+  return true;
+};
+
+const __originalDownloadCatalogFromStorage = downloadCatalogFromStorage;
+
+downloadCatalogFromStorage = async function() {
+  // Сначала пытаемся получить каталог из Firestore.
+  try {
+    const ok = await loadCatalogFromFirestore();
+    if (ok) return true;
+  } catch (e) {
+    console.warn("Firestore catalog unavailable:", e);
+  }
+
+  // Старый Storage-метод остаётся запасным вариантом.
+  return __originalDownloadCatalogFromStorage();
+};
