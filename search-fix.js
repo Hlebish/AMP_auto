@@ -164,21 +164,47 @@
     return 0;
   }
 
+  function asOrder(item) {
+    if (item._order) return item;
+    return {
+      ...item,
+      _order: true,
+      _order_brand: item.manufacturer_parts || "",
+      _order_oem: item.original_number || ""
+    };
+  }
+
+  function searchableCatalog() {
+    return [
+      ...catalog.map(item => ({ item, source: "stock" })),
+      ...(Array.isArray(window.orderCatalog)
+        ? window.orderCatalog.map(item => ({ item: asOrder(item), source: "order" }))
+        : [])
+    ];
+  }
+
   function articleSearch(q) {
     const cq = compact(q);
     if (!cq) return [];
 
-    return catalog.map(item => {
+    return searchableCatalog().map(({item, source}) => {
       const fields = [
         item.catalog_number,item.manufacturer_parts,item.original_number,item.a,item.o
       ].filter(Boolean).map(compact);
 
       const exact = fields.some(x => x === cq);
       const contains = fields.some(x => x.includes(cq));
-      return { item, score: exact ? 10000 : contains ? 9000 : 0 };
+      return {
+        item,
+        source,
+        score: exact ? 10000 : contains ? 9000 : 0
+      };
     })
     .filter(x => x.score > 0)
-    .sort((a,b) => b.score - a.score)
+    .sort((a,b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.source === "stock" ? -1 : 1) - (b.source === "stock" ? -1 : 1);
+    })
     .map(x => x.item);
   }
 
@@ -208,19 +234,15 @@
     const rows = crossRowsForQuery(q);
     if (!rows.length) return [];
 
-    const stockKeys = new Set();
-    catalog.forEach(item => {
-      stockKeys.add(compact(item.catalog_number));
-      stockKeys.add(compact(item.manufacturer_parts));
-    });
-
-    // Для одного запроса сначала убираем то, что уже есть на складе.
+    // Кроссы — это дополнительные позиции под заказ.
+    // Если такой артикул уже есть на складе, это НЕ повод удалять заказ:
+    // пользователь должен видеть оба варианта.
     const result = [];
     const seen = new Set();
 
     for (const row of rows) {
       const key = compact(row.article);
-      if (!key || stockKeys.has(key) || seen.has(key)) continue;
+      if (!key || seen.has(key)) continue;
       seen.add(key);
 
       result.push({
@@ -240,22 +262,17 @@
   }
 
   function mergeStockAndOrder(items, q) {
-    // Полный каталог участвует в поиске. Наличие определяет только статус:
-    // quantity > 0 — склад, quantity <= 0 — под заказ.
-    const catalogResults = items.map(item => {
-      if (qtyValue(item.quantity) > 0) return item;
+    // items уже содержит найденные позиции из обоих каталогов.
+    // Никакой дедупликации по артикулу здесь нет:
+    // один и тот же артикул на складе и под заказ должен показываться дважды.
+    const catalogResults = items.map(item =>
+      qtyValue(item.quantity) > 0 ? item : asOrder(item)
+    );
 
-      return {
-        ...item,
-        _order: true,
-        _order_brand: item.manufacturer_parts || "",
-        _order_oem: item.original_number || ""
-      };
-    });
-
-    // Кроссы могут добавить дополнительные позиции, которых нет в каталоге.
     const orders = crossOrderResults(q, catalogResults);
 
+    // Не дублируем только дополнительный кросс, если такой артикул уже
+    // пришёл из складского или заказного каталога.
     const seen = new Set(
       catalogResults
         .map(item => compact(item.catalog_number))
@@ -269,7 +286,6 @@
       return true;
     });
 
-    // Сначала товары со склада, затем весь каталог под заказ, затем внешние кроссы.
     catalogResults.sort((a, b) => {
       const sa = a._order ? 0 : 1;
       const sb = b._order ? 0 : 1;
@@ -287,10 +303,11 @@
       return;
     }
 
-    // Ждём загрузку кроссов перед поиском, чтобы пользователь не получил
-    // неполный результат из-за скорости сети.
+    // Ждём оба каталога: склад маленький и уже быстрый,
+    // а большой прайс под заказ загружается/берётся из IndexedDB отдельно.
     try {
       if (window.crossReady) await window.crossReady;
+      if (window.orderReady) await window.orderReady;
     } catch (e) {}
 
     const allTokens = words(raw);
@@ -314,7 +331,7 @@
       ? (tokens.map(partToken).find(Boolean) || parts[0])
       : null;
 
-    const scored = catalog.map(item => {
+    const scored = searchableCatalog().map(({item, source}) => {
       let score = 0;
 
       if (brands.length) {
@@ -348,11 +365,14 @@
 
       if (item.catalog_number && compact(item.catalog_number) === compact(raw)) score += 5000;
 
-      return { item, score };
+      return { item, source, score };
     })
     .filter(Boolean)
     .filter(x => x.score > 0)
-    .sort((a,b) => b.score - a.score);
+    .sort((a,b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return (a.source === "stock" ? -1 : 1) - (b.source === "stock" ? -1 : 1);
+    });
 
     const stock = scored.map(x => x.item);
     const combined = mergeStockAndOrder(stock, raw);
