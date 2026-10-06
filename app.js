@@ -71,6 +71,48 @@ function parseExcel(file){
 }
 function saveCatalog(){try{localStorage.setItem("amp_auto_catalog",JSON.stringify(catalog))}catch(e){console.warn("Catalog local save failed",e)}}
 function loadCatalog(){try{const x=JSON.parse(localStorage.getItem("amp_auto_catalog")||"[]");if(Array.isArray(x))catalog=x}catch(e){}}
+function saveCatalogVersion(v){try{localStorage.setItem("amp_auto_catalog_version",String(v))}catch(e){}}
+function loadCatalogVersion(){try{return localStorage.getItem("amp_auto_catalog_version")||""}catch(e){return ""}}
+function arrayBufferFromResponse(r){return r.arrayBuffer()}
+async function downloadCatalogFromStorage(){
+  try{
+    const ref=firebase.storage().ref("catalog/products.xlsx");
+    const meta=await ref.getMetadata();
+    const version=String(meta.updated||meta.generation||"");
+    const localVersion=loadCatalogVersion();
+    if(localVersion===version && catalog.length){
+      toast("Каталог актуален");
+      return true;
+    }
+    const url=await ref.getDownloadURL();
+    const response=await fetch(url,{cache:"no-store"});
+    if(!response.ok)throw new Error("HTTP "+response.status);
+    const buffer=await arrayBufferFromResponse(response);
+    const wb=XLSX.read(buffer,{type:"array"});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
+    catalog=stockOnly(rows);
+    saveCatalog();
+    saveCatalogVersion(version);
+    initStats();populateBrands();render(catalog.slice(0,100),"Каталог склада");
+    toast("Каталог обновлён: "+catalog.length+" артикулов");
+    return true;
+  }catch(e){
+    console.warn("Storage catalog unavailable:",e);
+    if(catalog.length){
+      initStats();populateBrands();render(catalog.slice(0,100),"Каталог склада");
+      toast("Используется последний сохранённый каталог");
+    }else{
+      toast("Каталог ещё не загружен");
+    }
+    return false;
+  }
+}
+async function uploadCatalogToStorage(file){
+  const ref=firebase.storage().ref("catalog/products.xlsx");
+  await ref.put(file,{contentType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",cacheControl:"no-cache"});
+  return downloadCatalogFromStorage();
+}
 function initStats(){
  const brands=new Set();
  catalog.forEach(x=>String(x.marks||"").split(",").map(v=>v.trim()).filter(Boolean).forEach(v=>brands.add(v.toLowerCase())));
@@ -189,11 +231,12 @@ async function loadWarehouse(){
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove("show"),1800)}
 async function handleExcel(file){
  try{
-  const rows=await parseExcel(file);
-  catalog=rows;
-  saveCatalog();initStats();populateBrands();render(catalog.slice(0,100),"Каталог склада");
-  toast("Каталог загружен: "+catalog.length+" артикулов в наличии");
- }catch(e){console.error(e);toast("Не удалось прочитать Excel");}
+  toast("Загружаю Excel в Firebase…");
+  await uploadCatalogToStorage(file);
+ }catch(e){
+  console.error(e);
+  toast("Не удалось загрузить Excel: "+(e.message||"ошибка"));
+ }
 }
 function setMode(next){
  mode=next;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("active",x.dataset.mode===next));
@@ -216,5 +259,5 @@ $("#loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.aut
 $("#logoutBtn").onclick=()=>auth.signOut();
 auth.onAuthStateChanged(async user=>{
  $("#login").classList.toggle("hidden",!!user);
- if(user){await loadWarehouse();if(catalog.length)buildAddresses(results)}
+ if(user){await loadWarehouse();await downloadCatalogFromStorage();if(catalog.length)buildAddresses(results)}
 });
