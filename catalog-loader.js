@@ -102,7 +102,7 @@
   }
 
   function isAmpartsManufacturer(value) {
-    return norm(value).replace(/[\\s_-]+/g, "") === "amparts";
+    return compact(value) === "amparts";
   }
 
   function unpackOrder(r) {
