@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v8";
+  const VERSION = "20261006-idb-v9";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
