@@ -239,11 +239,44 @@
     return result;
   }
 
-  function mergeStockAndOrder(stockItems, q) {
-    const orders = crossOrderResults(q, stockItems);
+  function mergeStockAndOrder(items, q) {
+    // Полный каталог участвует в поиске. Наличие определяет только статус:
+    // quantity > 0 — склад, quantity <= 0 — под заказ.
+    const catalogResults = items.map(item => {
+      if (qtyValue(item.quantity) > 0) return item;
 
-    // Жёсткий приоритет: весь склад выше любого "под заказ".
-    return [...stockItems, ...orders];
+      return {
+        ...item,
+        _order: true,
+        _order_brand: item.manufacturer_parts || "",
+        _order_oem: item.original_number || ""
+      };
+    });
+
+    // Кроссы могут добавить дополнительные позиции, которых нет в каталоге.
+    const orders = crossOrderResults(q, catalogResults);
+
+    const seen = new Set(
+      catalogResults
+        .map(item => compact(item.catalog_number))
+        .filter(Boolean)
+    );
+
+    const extraOrders = orders.filter(item => {
+      const key = compact(item.catalog_number);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Сначала товары со склада, затем весь каталог под заказ, затем внешние кроссы.
+    catalogResults.sort((a, b) => {
+      const sa = a._order ? 0 : 1;
+      const sb = b._order ? 0 : 1;
+      return sb - sa;
+    });
+
+    return [...catalogResults, ...extraOrders];
   }
 
   window.searchParts = async function(q) {
