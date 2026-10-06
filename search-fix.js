@@ -286,7 +286,7 @@
                 catalog_number: row.article,
                 manufacturer_parts: row.brand || "AMPARTS",
                 original_number: row.oem || q,
-                name: "Деталь " + row.article,
+                name: row.article,
                 quantity: 0,
                 price: ""
               }
