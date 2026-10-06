@@ -132,6 +132,8 @@
       if (Array.isArray(part)) {
         for (const row of part) rows.push(unpackOrder(row));
       }
+      // Не держим главный поток занятым всеми 62 чанками подряд.
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
     return rows;
   }
