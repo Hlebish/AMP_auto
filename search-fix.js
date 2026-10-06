@@ -295,19 +295,37 @@
     return [...catalogResults, ...extraOrders];
   }
 
+  function lazyOrderRefresh(raw) {
+    if (!window.ensureOrderCatalog) return;
+    if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) return;
+    if (window.__orderSearchLoading) return;
+
+    window.__orderSearchLoading = true;
+    window.ensureOrderCatalog()
+      .then(ok => {
+        window.__orderSearchLoading = false;
+        if (ok && window.__lastSearchQuery === raw) {
+          window.searchParts(raw);
+        }
+      })
+      .catch(() => {
+        window.__orderSearchLoading = false;
+      });
+  }
+
   window.searchParts = async function(q) {
     const raw = String(q || "").trim();
+    window.__lastSearchQuery = raw;
 
     if (!raw) {
       render(catalog.slice(0,100), "Каталог склада");
       return;
     }
 
-    // Ждём оба каталога: склад маленький и уже быстрый,
-    // а большой прайс под заказ загружается/берётся из IndexedDB отдельно.
+    // Кроссы нужны для поиска, но огромный прайс под заказ НЕ ждём.
+    // Сначала мгновенно показываем склад, затем догружаем заказы в фоне.
     try {
       if (window.crossReady) await window.crossReady;
-      if (window.orderReady) await window.orderReady;
     } catch (e) {}
 
     const allTokens = words(raw);
@@ -320,6 +338,7 @@
 
       if (combined.length) {
         render(combined, "Поиск: " + raw);
+        lazyOrderRefresh(raw);
         return;
       }
     }
@@ -378,5 +397,6 @@
     const combined = mergeStockAndOrder(stock, raw);
 
     render(combined, "Поиск: " + raw);
+    lazyOrderRefresh(raw);
   };
 })();
