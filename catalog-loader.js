@@ -331,6 +331,19 @@
   function installCatalog(rows, silent = false) {
     catalog = rows;
 
+    // Сразу фиксируем наши реальные AMParts-артикулы из склада.
+    // Это нужно ещё до загрузки огромного прайса под заказ, чтобы кроссы
+    // не смогли временно показать наш товар как "ПОД ЗАКАЗ".
+    window.ownStockArticles = new Set(
+      catalog
+        .filter(item =>
+          qtyValue(item.quantity) > 0 &&
+          isAmpartsManufacturer(item.manufacturer_parts || "")
+        )
+        .map(item => compact(item.catalog_number))
+        .filter(Boolean)
+    );
+
     catalogForCar = function(brand = "", model = "", engine = "") {
       const b = norm(brand);
       const e = norm(engine);
