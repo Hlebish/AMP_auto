@@ -69,7 +69,7 @@
     catalog = rows;
 
     // Подбор автомобиля остаётся только по реальному наличию.
-    window.catalogForCar = function(brand = "", model = "", engine = "") {
+    catalogForCar = function(brand = "", model = "", engine = "") {
       const b = norm(brand), m = norm(model), e = norm(engine);
       return stockOnly(catalog).filter(item =>
         hasValue(item.marks, b) &&
@@ -80,7 +80,7 @@
 
     // Полный каталог: наличие определяется quantity.
     // Склад всегда выше товаров под заказ.
-    window.render = function(list, title = "Каталог") {
+    render = function(list, title = "Каталог") {
       const sorted = [...list].sort((a, b) => {
         const sa = qtyValue(a.quantity) > 0 ? 1 : 0;
         const sb = qtyValue(b.quantity) > 0 ? 1 : 0;
