@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AMP Auto — подбор автозапчастей</title>
-<meta name="description" content="Подбор автозапчастей по автомобилю, артикулу, OEM и названию. Склад и товары под заказ.">
+<meta name="description" content="Подбор автозапчастей по автомобилю: марка, модель, год, двигатель, объём, тип топлива и кузов. Склад и товары под заказ.">
 <link rel="stylesheet" href="styles.css">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="shortcut icon" href="favicon.svg">
@@ -20,37 +20,34 @@
 <section class="hero">
   <div>
     <span class="eyebrow">AMP AUTO</span>
-    <h1>Найди деталь.</h1>
-    <p>Поиск по артикулу, OEM, марке, модели, двигателю или названию. Показываем товары со склада и под заказ.</p>
+    <h1>Подбор запчастей.</h1>
+    <p>Выберите автомобиль — сайт покажет подходящие детали со склада и варианты под заказ. Основной подбор: марка и модель. Остальные параметры помогают точнее отфильтровать автомобиль.</p>
   </div>
-  <div class="search-box">
-    <div class="tabs">
-      <button class="tab active" data-mode="parts">🔎 Деталь</button>
-      <button class="tab" data-mode="car">🚗 По автомобилю</button>
-    </div>
-    <div id="partsMode" class="mode">
-      <input id="search" autocomplete="off" placeholder="BMW, APMZ0316, 622544633R, бампер…">
-      <button id="searchBtn" class="primary">Найти</button>
-    </div>
-    <div id="carMode" class="mode hidden">
+  <div class="search-box vehicle-picker">
+    <div class="picker-title">🚗 Выберите автомобиль</div>
+    <div id="carMode" class="mode">
       <select id="brand"><option value="">Марка</option></select>
-      <select id="model"><option value="">Модель</option></select>
-      <select id="engine"><option value="">Двигатель</option></select>
-      <button id="carBtn" class="primary">Подобрать</button>
+      <input id="model" list="modelOptions" autocomplete="off" placeholder="Модель, например X5">
+      <datalist id="modelOptions"></datalist>
+      <input id="year" inputmode="numeric" maxlength="4" placeholder="Год, например 2019">
+      <select id="engine"><option value="">Двигатель — любой</option></select>
+      <input id="volume" inputmode="decimal" placeholder="Объём, л">
+      <select id="fuel"><option value="">Топливо — любое</option></select>
+      <select id="body"><option value="">Кузов — любой</option></select>
+      <button id="carBtn" class="primary">Подобрать детали</button>
     </div>
-    <div class="hint">Можно писать на русском, украинском или английском. Артикулы ищутся строго.</div>
+    <div class="picker-note">Обязательны только <b>марка</b> и <b>модель</b>. Год, двигатель, объём, топливо и кузов — дополнительные фильтры.</div>
   </div>
 </section>
 
-
 <section class="results-section">
-  <div class="section-head"><div><span class="eyebrow">РЕЗУЛЬТАТЫ</span><h2 id="resultTitle">Каталог склада</h2></div><button id="clearBtn" class="secondary">Очистить</button></div>
+  <div class="section-head"><div><span class="eyebrow">РЕЗУЛЬТАТЫ</span><h2 id="resultTitle">Каталог склада</h2></div><button id="clearBtn" class="secondary">Сбросить подбор</button></div>
   <div id="results" class="results"></div>
 </section>
 </main>
 
 <div id="toast" class="toast"></div>
-<script src="app.js?v=20261006-9"></script>
+<script src="app.js?v=20261006-10"></script>
 <script src="search-fix.js?v=20261006-7"></script>
   <script src="catalog-loader.js?v=20261006-7"></script>
 </body>
