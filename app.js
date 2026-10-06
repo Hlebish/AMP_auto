@@ -175,7 +175,7 @@ function setMode(next){
 $("#searchBtn").onclick=()=>searchParts($("#search").value);$("#search").onkeydown=e=>{if(e.key==="Enter")searchParts(e.target.value)};
 $("#carBtn").onclick=searchCar;$("#brand").onchange=()=>{populateModels();populateEngines()};$("#model").onchange=populateEngines;
 document.querySelectorAll(".tab").forEach(x=>x.onclick=()=>setMode(x.dataset.mode));
-$("#clearBtn").onclick=()=>{render(catalog.slice(0,100),"Каталог склада");buildAddresses([])};
+$("#clearBtn").onclick=()=>render(catalog.slice(0,100),"Каталог склада");
 $("#uploadBtn").onclick=()=>$("#excelInput").click();$("#excelInput").onchange=e=>{if(e.target.files[0])handleExcel(e.target.files[0])};
 $("#themeBtn").onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("amp_auto_dark",document.body.classList.contains("dark")?"1":"0")};
 if(localStorage.getItem("amp_auto_dark")==="1")document.body.classList.add("dark");
