@@ -109,8 +109,9 @@ function findOwnCrossReference(query) {
   const own = rows
     .filter(row => typeof isOwnManufacturer === "function" && isOwnManufacturer(row.brand || ""))
     .sort((a,b) => {
-      const sa = ownStockArticles.has(compact(a.article || "")) ? 0 : 1;
-      const sb = ownStockArticles.has(compact(b.article || "")) ? 0 : 1;
+      const ownStock = window.ownStockArticles || new Set();
+      const sa = ownStock.has(compact(a.article || "")) ? 0 : 1;
+      const sb = ownStock.has(compact(b.article || "")) ? 0 : 1;
       return sa - sb;
     });
 
