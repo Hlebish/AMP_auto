@@ -590,13 +590,13 @@ function initStats() {
 function splitValues(value) {
   return String(value || "")
     .split(",")
-    .map(v => norm(v).trim())
+    .map(v => v.trim())
     .filter(Boolean);
 }
 
 function hasValue(field, wanted) {
   const w = norm(wanted);
-  return !w || splitValues(field).includes(w);
+  return !w || splitValues(field).map(v => norm(v)).includes(w);
 }
 
 // Автомобильный подбор строится ТОЛЬКО из каталога с quantity > 0.
@@ -627,8 +627,8 @@ function populateBrands() {
     '<option value="">Марка</option>' +
     [...set]
       .sort((a,b) => a.localeCompare(b, "ru"))
-      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
-        escapeHtml(v) + "</option>")
+      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
+        escapeHtml(v.toUpperCase()) + "</option>")
       .join("");
 
   $("#model").innerHTML = '<option value="">Сначала выберите марку</option>';
@@ -656,8 +656,8 @@ function populateModels() {
     [...set]
       .sort((a,b) => a.localeCompare(b, "ru"))
       .slice(0, 500)
-      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
-        escapeHtml(v) + "</option>")
+      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
+        escapeHtml(v.toUpperCase()) + "</option>")
       .join("");
 
   $("#engine").innerHTML = '<option value="">Сначала выберите модель</option>';
@@ -684,8 +684,8 @@ function populateEngines() {
     [...set]
       .sort((a,b) => a.localeCompare(b, "ru"))
       .slice(0, 500)
-      .map(v => "<option value=\"" + escapeHtml(v) + "\">" +
-        escapeHtml(v) + "</option>")
+      .map(v => "<option value=\"" + escapeHtml(v.toUpperCase()) + "\">" +
+        escapeHtml(v.toUpperCase()) + "</option>")
       .join("");
 }
 
