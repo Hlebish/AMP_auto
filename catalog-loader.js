@@ -72,7 +72,7 @@
     return {
       catalog_number: r.c || "",
       manufacturer_parts: r.p || "",
-      name: r.n || "",
+      name: typeof cleanPartName === "function" ? cleanPartName(r.n || "") : r.n || "",
       description: r.d || "",
       quantity: r.q ?? "",
       price: r.pr ?? "",
