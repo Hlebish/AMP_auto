@@ -921,7 +921,7 @@ async function searchCar() {
                   _amparts:true,
                   catalog_number:row.article,
                   manufacturer_parts:row.brand || "AMPARTS",
-                  name:"Деталь " + row.article,
+                  name:row.article,
                   original_number:row.oem || stockItem.original_number || oem,
                   quantity:0,
                   price:""
