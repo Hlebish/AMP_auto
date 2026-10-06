@@ -259,7 +259,7 @@ const warehouseApp=firebase.initializeApp(warehouseFirebaseConfig,"warehouse");
 const auth=firebase.auth(ampApp);
 const ampStorage=firebase.storage(ampApp);
 const warehouseDb=firebase.database(warehouseApp);
-$("#loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("#loginError").textContent=e.message||"Ошибка входа"}};
+$("#loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("#loginError").textContent=(e.code||"firebase/error")+": "+(e.message||"Ошибка входа")}};
 $("#logoutBtn").onclick=()=>auth.signOut();
 auth.onAuthStateChanged(async user=>{
  $("#login").classList.toggle("hidden",!!user);
