@@ -227,25 +227,17 @@
   }
 
   function crossRowsForQuery(q) {
+    if (typeof window.crossFamilyRows === "function") {
+      return window.crossFamilyRows(q);
+    }
+
     const db = window.crossData || {};
     const byOem = db.by_oem || {};
     const byArticle = db.by_article || {};
     const key = compact(q);
     if (!key) return [];
 
-    const direct = byOem[key] || [];
-    const reverse = byArticle[key] || [];
-
-    // Если ищем наш артикул — показываем его кроссы тоже.
-    const combined = [...direct, ...reverse];
-    const seen = new Set();
-
-    return combined.filter(x => {
-      const id = [x.article,x.brand,x.oem,x.oem_brand].join("|");
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
+    return [...(byOem[key] || []), ...(byArticle[key] || [])];
   }
 
   function crossOrderResults(q, stockItems) {
