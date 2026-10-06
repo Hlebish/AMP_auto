@@ -325,4 +325,5 @@
     const combined = mergeStockAndOrder(stock, raw);
 
     render(combined, "Поиск: " + raw);
-  };\n})();
+  };
+})();
