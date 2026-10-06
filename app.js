@@ -996,10 +996,15 @@ function setMode(next) {
 ========================= */
 
 $("#searchBtn").onclick =
-  () =>
-    searchParts(
-      $("#search").value
-    );
+  () => {
+    searchParts($("#search").value);
+    setTimeout(() => {
+      document.getElementById("results-section")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }, 50);
+  };
 
 $("#search").onkeydown =
   e => {
