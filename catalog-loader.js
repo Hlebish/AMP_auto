@@ -112,7 +112,11 @@
   }
 
   function isAmpartsManufacturer(value) {
-    return compact(value) === "amparts";
+    if (typeof window.isOwnManufacturer === "function") {
+      return window.isOwnManufacturer(value);
+    }
+    const key = compact(value);
+    return key === "amparts" || key.startsWith("amparts");
   }
 
   function unpackOrder(r) {
@@ -173,16 +177,51 @@
         .map(item => compact(item.catalog_number))
         .filter(Boolean)
     );
-    const ampSeen = new Set();
+    const ownStockArticles = new Set(
+      catalog
+        .filter(item =>
+          qtyValue(item.quantity) > 0 &&
+          isAmpartsManufacturer(item.manufacturer_parts || "")
+        )
+        .map(item => compact(item.catalog_number))
+        .filter(Boolean)
+    );
+
+    // Это авторитетный список наших артикулов:
+    // если артикул есть на нашем складе и производитель AMParts,
+    // он НИКОГДА не может превратиться в "под заказ".
+    window.ownStockArticles = ownStockArticles;
+
+    const ownUnavailableSeen = new Set();
     const unavailableAmparts = [];
 
-    orderCatalog = allRows.filter(item => !item._amparts);
+    orderCatalog = allRows.filter(item => {
+      const key = compact(item.catalog_number);
+      const ownByArticle = key && ownStockArticles.has(key);
+      const ownByManufacturer =
+        isAmpartsManufacturer(item.manufacturer_parts || item._order_brand || "");
+
+      // Наш склад имеет приоритет над любым внешним прайсом.
+      if (ownByArticle) return false;
+
+      // AMParts никогда не попадает в "ПОД ЗАКАЗ".
+      if (ownByManufacturer) return false;
+
+      return !item._amparts;
+    });
 
     for (const item of allRows) {
-      if (!item._amparts) continue;
       const key = compact(item.catalog_number);
-      if (!key || stockArticles.has(key) || ampSeen.has(key)) continue;
-      ampSeen.add(key);
+      const ownByArticle = key && ownStockArticles.has(key);
+      const ownByManufacturer =
+        item._amparts ||
+        isAmpartsManufacturer(item.manufacturer_parts || item._order_brand || "");
+
+      if (!ownByManufacturer || ownByArticle || !key || ownUnavailableSeen.has(key)) {
+        continue;
+      }
+
+      ownUnavailableSeen.add(key);
       unavailableAmparts.push({
         ...item,
         source: "amparts",
