@@ -19,62 +19,12 @@ const escapeHtml = v =>
   }[m]));
 
 let catalog = [];
-let catalogReady = false;
-
-window.catalogReady = (async function loadUnifiedCatalog() {
-  try {
-    const manifestRes = await fetch("catalog/manifest.json?v=20261006", {cache:"no-store"});
-    if (!manifestRes.ok) throw new Error("manifest HTTP " + manifestRes.status);
-    const manifest = await manifestRes.json();
-    const parts = [];
-    for (let i = 0; i < Number(manifest.chunks || 0); i++) {
-      const res = await fetch("catalog/catalog-" + String(i).padStart(2,"0") + ".json?v=20261006", {cache:"no-store"});
-      if (!res.ok) throw new Error("catalog chunk " + i + " HTTP " + res.status);
-      parts.push(...await res.json());
-    }
-    catalog = parts.map(x => ({
-      catalog_number: x.c || "",
-      manufacturer_parts: x.p || "",
-      name: x.n || "",
-      description: x.d || "",
-      quantity: x.q ?? "",
-      price: x.pr ?? "",
-      original_number: x.o || "",
-      marks: x.b || "",
-      models: x.m || "",
-      engine: x.e || "",
-      image: x.i || ""
-    }));
-    catalogReady = true;
-    initStats();
-    populateBrands();
-    render(catalog.slice(0,100), "Каталог");
-    return true;
-  } catch (e) {
-    console.warn("Unified catalog unavailable:", e);
-    return false;
-  }
-})();
 let results = [];
 let mode = "parts";
 
 let crossData = { by_oem: {}, by_article: {} };
-window.crossReady = (async function loadCrossDatabase() {
-  try {
-    const response = await fetch("crosses.json?v=20261006", { cache: "no-store" });
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    const data = await response.json();
-    if (data && (data.by_oem || data.by_article)) {
-      crossData = data;
-      window.crossData = crossData;
-      return true;
-    }
-  } catch (e) {
-    console.warn("Cross database unavailable:", e);
-  }
-  window.crossData = crossData;
-  return false;
-})();
+window.crossData = crossData;
+window.crossReady = Promise.resolve(false);
 
 const aliases = {
   bmw: ["bmw", "бмв"],
@@ -683,31 +633,6 @@ if (
 ) {
   document.body.classList.add(
     "dark"
-  );
-}
-
-/* =========================
-   INIT
-========================= */
-
-loadCatalog();
-
-initStats();
-
-populateBrands();
-
-if (catalog.length) {
-
-  render(
-    catalog.slice(0, 100),
-    "Каталог склада"
-  );
-
-} else {
-
-  render(
-    [],
-    "Каталог склада"
   );
 }
 
