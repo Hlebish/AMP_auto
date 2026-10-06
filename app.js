@@ -1,4 +1,4 @@
-const ampFirebaseConfig={apiKey:"AIzaSyBHAc4Fra0XG8wtqwMjH_kk8T4rNhQxvMw",authDomain:"amp-auto.firebaseapp.com",projectId:"amp-auto",storageBucket:"amp-auto.firebasestorage.app",messagingSenderId:"305575986701",appId:"1:305575986701:web:424e1d1e14a2855274f744"};
+const ampFirebaseConfig={apiKey:"AIzaSyD_e0H_aH25JnpULvyEwUSSeZoOAxJVBt8",authDomain:"amp-auto.firebaseapp.com",projectId:"amp-auto",storageBucket:"amp-auto.firebasestorage.app",messagingSenderId:"305575986701",appId:"1:305575986701:web:424e1d1e14a2855274f744"};
 const warehouseFirebaseConfig={apiKey:"AIzaSyAFd_IPlACJlpxeGsNE7Iq3dQm-VYu5Ba4",authDomain:"warehouse-map-b6ed6.firebaseapp.com",databaseURL:"https://warehouse-map-b6ed6-default-rtdb.europe-west1.firebasedatabase.app",projectId:"warehouse-map-b6ed6",storageBucket:"warehouse-map-b6ed6.firebasestorage.app",messagingSenderId:"196261680344",appId:"1:196261680344:web:fdd54671cf57690744f3ad"};
 const $=s=>document.querySelector(s), norm=v=>String(v??"").toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-яіїєґ0-9]+/g," ").trim();
 const compact=v=>norm(v).replace(/\s+/g,"");
