@@ -483,7 +483,11 @@ function searchParts(q) {
 }
 
 async function searchCar() {
-  try { if(window.fullCatalogReady) await window.fullCatalogReady; } catch(e) {}
+  try {
+    if(window.fullCatalogReady) await window.fullCatalogReady;
+    if(window.ensureCrossDatabase) await window.ensureCrossDatabase();
+    if(window.ensureOrderCatalog) await window.ensureOrderCatalog();
+  } catch(e) {}
 
   const b=norm($("#brand")?.value);
   const m=String($("#model")?.value||"").trim();
@@ -508,7 +512,6 @@ async function searchCar() {
   });
 
   const stockList=matched.slice();
-  const stockArticles=new Set(stockList.map(x=>compact(x.catalog_number)).filter(Boolean));
 
   const orderByArticle=new Map();
   if(Array.isArray(window.orderCatalog)){
@@ -525,7 +528,7 @@ async function searchCar() {
       const rows=window.crossData?.by_oem?.[oem]||[];
       for(const row of rows){
         const article=compact(row.article);
-        if(!article||stockArticles.has(article)||seenOrder.has(article)) continue;
+        if(!article||seenOrder.has(article)) continue;
         const existing=orderByArticle.get(article);
         const item=existing
           ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
