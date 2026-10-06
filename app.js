@@ -256,21 +256,76 @@ function bodyType(item) {
   return "";
 }
 
-function canonicalModel(value) {
-  let s = norm(value);
-  // В источниках одна и та же генерация может называться, например,
-  // "3 II (BL)" и "3 (BL)". Для подбора считаем их одной моделью.
-  s = s.replace(/\\s+(i{1,3}|iv|v)\\s+(?=\\([^)]*\\))/g, " ");
-  s = s.replace(/\\s+/g, " ").trim();
+function modelCode(value) {
+  const m = norm(value).match(/\\(([^)]{1,24})\\)/);
+  return m ? compact(m[1]) : "";
+}
+
+function modelFamily(value) {
+  let s = norm(value)
+    .replace(/\\([^)]*\\)/g, " ")
+    .replace(/\\b(mk|gen|generation|поколение)\\b/g, " ")
+    .replace(/\\b(i{1,3}|iv|v)\\b/g, " ");
+
+  // A number after the model name is commonly a generation marker
+  // (Almera 2, X-Trail 3, Legacy 4). Keep a leading number because
+  // models such as "3 (BL)" and "500 (312)" use it as the model name.
+  const tokens = s.split(/\\s+/).filter(Boolean);
+  if (tokens.length > 1) {
+    s = tokens.filter((t, i) => !(i > 0 && /^\\d{1,2}$/.test(t))).join(" ");
+  }
+
+  s = s
+    .replace(/\\b(sedan|saloon|wagon|touring|variant|estate|combi|hatchback|hatch|coupe|cabrio|convertible|van|mpv|pickup|cab|универсал|седан|купе|кабриолет|фургон|минивен|пикап|хетчбек|хэтчбек)\\b/g, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+
   return s;
 }
 
-function modelMatches(item,query) {
-  const q=canonicalModel(query);
+function canonicalModel(value) {
+  const s = norm(value)
+    .replace(/\\b(mk|gen|generation|поколение)\\b/g, " ")
+    .replace(/\\b(i{1,3}|iv|v)\\b/g, " ");
+
+  const tokens = s.split(/\\s+/).filter(Boolean);
+  const cleaned = tokens.length > 1
+    ? tokens.filter((t, i) => !(i > 0 && /^\\d{1,2}$/.test(t))).join(" ")
+    : s;
+
+  return cleaned
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+function modelMatches(item, query) {
+  const q = canonicalModel(query);
   if (!q) return true;
-  return splitValues(item.models).some(v=>{
-    const n=canonicalModel(v);
-    return n===q || n.includes(q) || q.includes(n);
+
+  const qCode = modelCode(query);
+  const qFamily = modelFamily(query);
+
+  return splitValues(item.models).some(value => {
+    const n = canonicalModel(value);
+
+    // Exact/broad textual match first.
+    if (n === q || n.includes(q) || q.includes(n)) return true;
+
+    // Stronger vehicle-generation match: same platform/body code
+    // plus the same model family after removing generation/body wording.
+    const code = modelCode(value);
+    if (qCode && code && qCode === code) {
+      const family = modelFamily(value);
+      if (
+        family === qFamily ||
+        family.startsWith(qFamily + " ") ||
+        qFamily.startsWith(family + " ")
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   });
 }
 
