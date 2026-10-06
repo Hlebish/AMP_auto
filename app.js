@@ -816,19 +816,51 @@ async function searchCar() {
       }
     }
 
-    const orderList=[], seenOrder=new Set();
+    const orderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
+    const ownStockArticles = window.ownStockArticles || new Set();
+
     for(const stockItem of matched){
       const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
       for(const oem of oems){
         const rows=window.crossData?.by_oem?.[oem]||[];
         for(const row of rows){
           const article=compact(row.article);
-          if(!article||seenOrder.has(article)) continue;
+          if(!article||seenOrder.has(article)||seenOwnUnavailable.has(article)) continue;
+
+          // Наш артикул не может стать "ПОД ЗАКАЗ".
+          if(ownStockArticles.has(article)) continue;
+
+          const ownByManufacturer =
+            typeof window.isOwnManufacturer === "function"
+              ? window.isOwnManufacturer(row.brand || "")
+              : compact(row.brand || "") === "amparts";
+
+          if(ownByManufacturer){
+            const item = typeof window.makeUnavailableOwnPart === "function"
+              ? window.makeUnavailableOwnPart(row, stockItem.original_number || oem)
+              : {
+                  _unavailable:true,
+                  _order:false,
+                  _amparts:true,
+                  catalog_number:row.article,
+                  manufacturer_parts:row.brand || "AMPARTS",
+                  name:"Деталь " + row.article,
+                  original_number:row.oem || stockItem.original_number || oem,
+                  quantity:0,
+                  price:""
+                };
+
+            seenOwnUnavailable.add(article);
+            orderList.push(item);
+            continue;
+          }
+
           const existing=orderByArticle.get(article);
           const item=existing
             ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
             : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:"Деталь "+row.article,original_number:row.oem||"",quantity:0,price:""};
-          seenOrder.add(article); orderList.push(item);
+          seenOrder.add(article);
+          orderList.push(item);
         }
       }
     }
