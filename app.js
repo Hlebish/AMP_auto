@@ -460,7 +460,11 @@ function searchParts(q) {
   );
 }
 
-function searchCar() {
+async function searchCar() {
+  try {
+    if (window.fullCatalogReady) await window.fullCatalogReady;
+  } catch (e) {}
+
   const b = norm($("#brand").value);
   const m = norm($("#model").value);
   const e = norm($("#engine").value);
@@ -475,12 +479,18 @@ function searchCar() {
     return;
   }
 
-  const list = catalogForCar(b, m, e);
+  const matched = catalogForCar(b, m, e);
 
-  render(
-    list,
-    "Подбор по автомобилю"
-  );
+  const list = matched
+    .map(item => qtyValue(item.quantity) > 0 ? item : {
+      ...item,
+      _order: true,
+      _order_brand: item.manufacturer_parts || "",
+      _order_oem: item.original_number || ""
+    })
+    .sort((a, b) => (b._order ? 0 : 1) - (a._order ? 0 : 1));
+
+  render(list, "Подбор по автомобилю");
 
   setTimeout(() => {
     document.querySelector(".results-section")?.scrollIntoView({
