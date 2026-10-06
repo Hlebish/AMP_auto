@@ -8,7 +8,6 @@
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
@@ -62,7 +61,7 @@
 <section class="stats" id="stats">
   <div><b id="stockCount">0</b><span>артикулов в наличии</span></div>
   <div><b id="brandCount">0</b><span>марок</span></div>
-  <div><b id="addressCount">—</b><span>адресов найдено на карте</span></div>
+  
 </section>
 
 <section class="results-section">
@@ -70,20 +69,6 @@
   <div id="results" class="results"></div>
 </section>
 
-<section class="map-section">
-  <div class="section-head"><div><span class="eyebrow">СКЛАД</span><h2>Где лежит деталь</h2></div><span id="mapStatus" class="muted">Выберите результат</span></div>
-  <div class="map-wrap">
-    <div class="warehouse-plan" id="warehousePlan">
-      <img src="https://raw.githubusercontent.com/Hlebish/warehouse-map/main/warehouse-plan.png" alt="План склада">
-      <div id="markers"></div>
-    </div>
-  </div>
-</section>
-
-<section class="grid-section">
-  <div class="section-head"><div><span class="eyebrow">ЯЧЕЙКИ</span><h2>Найденные адреса</h2></div></div>
-  <div id="addressGrid" class="address-grid"></div>
-</section>
 </main>
 
 <div id="toast" class="toast"></div>
