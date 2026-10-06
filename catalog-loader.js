@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v6";
+  const VERSION = "20261006-idb-v7";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -101,7 +101,12 @@
     return rows;
   }
 
+  function isAmpartsManufacturer(value) {
+    return norm(value).replace(/[\\s_-]+/g, "") === "amparts";
+  }
+
   function unpackOrder(r) {
+    const amp = isAmpartsManufacturer(r.p || "");
     return {
       catalog_number: r.c || "",
       manufacturer_parts: r.p || "",
@@ -114,8 +119,10 @@
       models: "",
       engine: "",
       image: "",
-      source: "order",
-      _order: true,
+      source: amp ? "amparts" : "order",
+      _order: !amp,
+      _unavailable: amp,
+      _amparts: amp,
       _order_brand: r.p || "",
       _order_oem: ""
     };
@@ -139,8 +146,35 @@
   }
 
   function installOrders(rows, silent = false) {
-    orderCatalog = Array.isArray(rows) ? rows : [];
+    const allRows = Array.isArray(rows) ? rows : [];
+    const stockArticles = new Set(
+      catalog
+        .filter(item => qtyValue(item.quantity) > 0)
+        .map(item => compact(item.catalog_number))
+        .filter(Boolean)
+    );
+    const ampSeen = new Set();
+    const unavailableAmparts = [];
+
+    orderCatalog = allRows.filter(item => !item._amparts);
+
+    for (const item of allRows) {
+      if (!item._amparts) continue;
+      const key = compact(item.catalog_number);
+      if (!key || stockArticles.has(key) || ampSeen.has(key)) continue;
+      ampSeen.add(key);
+      unavailableAmparts.push({
+        ...item,
+        source: "amparts",
+        _order: false,
+        _unavailable: true,
+        _amparts: true,
+        quantity: 0
+      });
+    }
+
     window.orderCatalog = orderCatalog;
+    window.ampartsUnavailableCatalog = unavailableAmparts;
 
     // Индексируем только известные типы деталей. Это сильно ускоряет
     // массовые запросы вроде "поршни": вместо прохода по 300k+ строкам
