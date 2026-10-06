@@ -244,14 +244,23 @@
       })());
     }
 
-    if (!cachedOrders) {
+    if (cachedOrders && Array.isArray(cachedOrders.rows)) {
+      installOrders(cachedOrders.rows, true);
+      window.orderReady = Promise.resolve(true);
+    } else {
       const task = (async () => {
-        const rows = await downloadOrders(orderManifest);
-        await idbPut(ORDER_STORE, { key: oKey, version: orderManifest.version, rows });
-        installOrders(rows, true);
-        window.orderReady = Promise.resolve(true);
+        try {
+          const rows = await downloadOrders(orderManifest);
+          await idbPut(ORDER_STORE, { key: oKey, version: orderManifest.version, rows });
+          installOrders(rows, true);
+          window.orderReady = Promise.resolve(true);
+        } catch (e) {
+          console.warn("AMP Auto order catalog load:", e);
+          window.orderReady = Promise.resolve(false);
+        }
       })();
-      tasks.push(task);
+      task.catch(() => {});
+      window.orderReady = task.then(() => true, () => false);
     }
 
     if (!cachedCrosses) {
@@ -263,6 +272,8 @@
       })());
     }
 
+    // Склад и кроссы критичны для первого экрана.
+    // Огромный прайс под заказ грузим отдельно, не блокируя запуск сайта.
     await Promise.all(tasks);
     return true;
   }
