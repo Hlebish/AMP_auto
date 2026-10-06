@@ -181,9 +181,10 @@
 
   function searchableCatalog(partHint = null) {
     const stockRows = catalog.map(item => ({ item, source: "stock" }));
+    const unavailableRows = Array.isArray(window.ampartsUnavailableCatalog)
+      ? window.ampartsUnavailableCatalog
+      : [];
 
-    // Для массовых категорий не сканируем весь прайс под заказ (300k+ строк).
-    // catalog-loader.js строит компактный индекс по типам деталей.
     let orderRows = Array.isArray(window.orderCatalog)
       ? window.orderCatalog
       : [];
@@ -194,6 +195,7 @@
 
     return [
       ...stockRows,
+      ...unavailableRows.map(item => ({ item, source: "unavailable" })),
       ...orderRows.map(item => ({ item: asOrder(item), source: "order" }))
     ];
   }
@@ -218,7 +220,7 @@
     .filter(x => x.score > 0)
     .sort((a,b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return (a.source === "stock" ? -1 : 1) - (b.source === "stock" ? -1 : 1);
+      const rank = { stock: 0, unavailable: 1, order: 2 };\n      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
     })
     .map(x => x.item);
   }
@@ -280,9 +282,10 @@
     // items уже содержит найденные позиции из обоих каталогов.
     // Никакой дедупликации по артикулу здесь нет:
     // один и тот же артикул на складе и под заказ должен показываться дважды.
-    const catalogResults = items.map(item =>
-      qtyValue(item.quantity) > 0 ? item : asOrder(item)
-    );
+    const catalogResults = items.map(item => {
+      if (item._unavailable) return item;
+      return qtyValue(item.quantity) > 0 ? item : asOrder(item);
+    });
 
     const orders = crossOrderResults(q, catalogResults);
 
@@ -408,7 +411,7 @@
     .filter(x => x.score > 0)
     .sort((a,b) => {
       if (b.score !== a.score) return b.score - a.score;
-      return (a.source === "stock" ? -1 : 1) - (b.source === "stock" ? -1 : 1);
+      const rank = { stock: 0, unavailable: 1, order: 2 };\n      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
     });
 
     const stock = scored.map(x => x.item);
