@@ -57,15 +57,15 @@
   }
 
   function catalogKey(manifest) {
-    return "catalog:" + String(manifest.version || manifest.source || "default");
+    return "catalog:" + VERSION + ":" + String(manifest.version || manifest.source || "default");
   }
 
   function orderKey(manifest) {
-    return "orders:" + String(manifest.version || manifest.source || "default");
+    return "orders:" + VERSION + ":" + String(manifest.version || manifest.source || "default");
   }
 
   function crossKey(manifest) {
-    return "crosses:" + String(manifest.version || manifest.source || "default");
+    return "crosses:" + VERSION + ":" + String(manifest.version || manifest.source || "default");
   }
 
   function unpack(r) {
