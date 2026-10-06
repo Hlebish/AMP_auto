@@ -27,11 +27,10 @@
     <div class="picker-title">🚗 Выберите автомобиль</div>
     <div id="carMode" class="mode">
       <select id="brand"><option value="">Марка</option></select>
-      <input id="model" list="modelOptions" autocomplete="off" placeholder="Модель, например X5">
-      <datalist id="modelOptions"></datalist>
-      <input id="year" inputmode="numeric" maxlength="4" placeholder="Год, например 2019">
+      <select id="model"><option value="">Модель</option></select>
+      <select id="year"><option value="">Год — любой</option></select>
       <select id="engine"><option value="">Двигатель — любой</option></select>
-      <input id="volume" inputmode="decimal" placeholder="Объём, л">
+      <select id="volume"><option value="">Объём — любой</option></select>
       <select id="fuel"><option value="">Топливо — любое</option></select>
       <select id="body"><option value="">Кузов — любой</option></select>
       <button id="carBtn" class="primary">Подобрать детали</button>
@@ -47,7 +46,7 @@
 </main>
 
 <div id="toast" class="toast"></div>
-<script src="app.js?v=20261006-13"></script>
+<script src="app.js?v=20261006-14"></script>
 <script src="search-fix.js?v=20261006-8"></script>
   <script src="catalog-loader.js?v=20261006-8"></script>
 </body>
