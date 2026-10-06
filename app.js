@@ -479,14 +479,59 @@ async function searchCar() {
 
   const matched = catalogForCar(b, m, e);
 
-  const list = matched
-    .map(item => qtyValue(item.quantity) > 0 ? item : {
-      ...item,
-      _order: true,
-      _order_brand: item.manufacturer_parts || "",
-      _order_oem: item.original_number || ""
-    })
-    .sort((a, b) => (b._order ? 0 : 1) - (a._order ? 0 : 1));
+  // Подбор автомобиля должен работать так же, как обычный поиск:
+  // сначала реальные складские позиции, затем подходящие товары под заказ.
+  // Заказной прайс не содержит полей марки/модели, поэтому связываем его
+  // с автомобилем через OEM -> кросс -> артикул.
+  try {
+    if (window.crossReady) await window.crossReady;
+    if (window.ensureOrderCatalog) await window.ensureOrderCatalog();
+  } catch (e) {}
+
+  const stockList = matched.slice();
+  const orderByArticle = new Map();
+
+  if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) {
+    for (const item of window.orderCatalog) {
+      const key = compact(item.catalog_number);
+      if (key && !orderByArticle.has(key)) orderByArticle.set(key, item);
+    }
+  }
+
+  const orderList = [];
+  const seenOrder = new Set();
+
+  for (const stockItem of matched) {
+    const oems = String(stockItem.original_number || "")
+      .split(",")
+      .map(v => compact(v))
+      .filter(Boolean);
+
+    for (const oem of oems) {
+      const rows = (window.crossData?.by_oem?.[oem] || []);
+      for (const row of rows) {
+        const article = compact(row.article);
+        if (!article || seenOrder.has(article)) continue;
+
+        const orderItem = orderByArticle.get(article);
+        if (!orderItem) continue;
+
+        seenOrder.add(article);
+        orderList.push({
+          ...orderItem,
+          _order: true,
+          _order_brand: orderItem.manufacturer_parts || row.brand || "",
+          _order_oem: row.oem || stockItem.original_number || ""
+        });
+      }
+    }
+  }
+
+  // Сначала склад, затем под заказ — без дедупликации между источниками.
+  const list = [
+    ...stockList,
+    ...orderList
+  ];
 
   render(list, "Подбор по автомобилю");
 
