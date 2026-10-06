@@ -27,6 +27,27 @@
     return unpack(await res.json());
   }
 
+  async function loadCrossDatabase() {
+    const parts = await Promise.all(
+      Array.from({ length: 6 }, (_, i) =>
+        fetch("crosses/cross-" + String(i).padStart(2, "0") + ".json?v=20261006", { cache: "no-store" })
+          .then(r => { if (!r.ok) throw new Error("Кроссы: HTTP " + r.status); return r.json(); })
+      )
+    );
+    const rows = parts.flat();
+    const by_oem = {}, by_article = {};
+    for (const x of rows) {
+      const oem = compact(x.o || "");
+      const article = compact(x.a || "");
+      const row = { article: x.a || "", brand: x.b || "", oem: x.o || "", oem_brand: x.ob || "" };
+      if (oem) (by_oem[oem] ||= []).push(row);
+      if (article) (by_article[article] ||= []).push(row);
+    }
+    crossData = { by_oem, by_article };
+    window.crossData = crossData;
+    return true;
+  }
+
   async function loadFullCatalog() {
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) {
@@ -110,6 +131,12 @@
   }
 
   window.fullCatalogReady = (async () => {
+    try {
+      await loadCrossDatabase();
+      if (window.crossReady) await window.crossReady;
+    } catch (e) {
+      console.warn("Cross database load failed:", e);
+    }
     try {
       const rows = await loadFullCatalog();
       installFullCatalog(rows);
