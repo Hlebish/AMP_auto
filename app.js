@@ -1,9 +1,8 @@
 const ampFirebaseConfig={apiKey:"AIzaSyD_e0H_aH25JnpULvyEwUSSeZoOAxJVBt8",authDomain:"amp-auto.firebaseapp.com",projectId:"amp-auto",storageBucket:"amp-auto.firebasestorage.app",messagingSenderId:"305575986701",appId:"1:305575986701:web:424e1d1e14a2855274f744"};
-const warehouseFirebaseConfig={apiKey:"AIzaSyAFd_IPlACJlpxeGsNE7Iq3dQm-VYu5Ba4",authDomain:"warehouse-map-b6ed6.firebaseapp.com",databaseURL:"https://warehouse-map-b6ed6-default-rtdb.europe-west1.firebasedatabase.app",projectId:"warehouse-map-b6ed6",storageBucket:"warehouse-map-b6ed6.firebasestorage.app",messagingSenderId:"196261680344",appId:"1:196261680344:web:fdd54671cf57690744f3ad"};
 const $=s=>document.querySelector(s), norm=v=>String(v??"").toLowerCase().replace(/ё/g,"е").replace(/[^a-zа-яіїєґ0-9]+/g," ").trim();
 const compact=v=>norm(v).replace(/\s+/g,"");
 const escapeHtml=v=>String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
-let catalog=[],results=[],warehouse={},mode="parts",addresses=new Map(),activeAddress=null;
+let catalog=[],results=[],mode="parts";
 
 const aliases={
  "bmw":["bmw","бмв","бмв"],
@@ -139,16 +138,15 @@ function populateEngines(){
 function render(list,title="Каталог склада"){
  results=list.slice(0,300);$("#resultTitle").textContent=title+(list.length>300?" · первые 300":"");
  if(!list.length){$("#results").innerHTML='<div class="empty">Ничего не найдено среди деталей, которые есть в наличии.</div>';return}
- $("#results").innerHTML=list.slice(0,300).map((x,i)=>{
-   const ad=findAddresses(x.a);
+ $("#results").innerHTML=list.slice(0,300).map(x=>{
    const qty=String(x.quantity||"");
-   return '<article class="result-card"><div><div class="result-name">'+escapeHtml(x.name||x.a)+'</div><div class="meta"><strong>'+escapeHtml(x.catalog_number)+'</strong> · '+escapeHtml(x.manufacturer_parts||"")+'<br>OEM: '+escapeHtml(String(x.original_number||"").split(",").slice(0,6).join(", "))+'<br>Авто: '+escapeHtml(x.marks||"")+(x.models?" · "+escapeHtml(String(x.models).split(",").slice(0,3).join(", ")):"")+'<br><span class="qty">В наличии: '+escapeHtml(qty)+'</span>'+(x.price? ' · '+Number(x.price).toLocaleString("uk-UA")+' ₴':"")+'</div></div><div class="result-actions">'+(ad.length?'<button class="map-btn" onclick="showOnMap('+i+')">🗺️ '+ad[0]+'</button>':'<span class="muted">Адрес не найден</span>')+'</div></article>';
+   return '<article class="result-card"><div><div class="result-name">'+escapeHtml(x.name||x.catalog_number)+'</div><div class="meta"><strong>'+escapeHtml(x.catalog_number)+'</strong> · '+escapeHtml(x.manufacturer_parts||"")+'<br>OEM: '+escapeHtml(String(x.original_number||"").split(",").slice(0,6).join(", "))+'<br>Авто: '+escapeHtml(x.marks||"")+(x.models?" · "+escapeHtml(String(x.models).split(",").slice(0,3).join(", ")):"")+'<br><span class="qty">В наличии: '+escapeHtml(qty)+'</span>'+(x.price?' · '+Number(x.price).toLocaleString("uk-UA")+' ₴':"")+'</div></div></article>';
  }).join("");
 }
 function searchParts(q){
  if(!q.trim()){render(catalog.slice(0,100),"Каталог склада");return}
  const scored=catalog.map(x=>({x,s:scoreItem(x,q)})).filter(o=>o.s>0).sort((a,b)=>b.s-a.s);
- render(scored.map(o=>o.x),"Поиск: "+q);buildAddresses(results);
+ render(scored.map(o=>o.x),"Поиск: "+q);
 }
 function searchCar(){
  const b=norm($("#brand").value),m=norm($("#model").value),e=norm($("#engine").value);
@@ -158,76 +156,7 @@ function searchCar(){
    const engines=norm(x.engine).split(",").map(v=>v.trim());
    return (!b||brands.includes(b))&&(!m||models.includes(m))&&(!e||engines.includes(e));
  });
- render(list,"Подбор по автомобилю");buildAddresses(results);
-}
-function addressText(s,l,n){return s+"-"+l+n}
-const left=["A","B","C","D","E"], right=["F","G","H","J","K"];
-function cellEntries(){
- const out=[];
- for(let s=1;s<=5;s++){
-  const letters=s===1?left.concat(right):left.concat(right);
-  for(const l of letters)for(let n=1;n<=10;n++){
-   const v=warehouse["S"+s]?.[l]?.[String(n)]||"";
-   if(v)out.push({s:"S"+s,l,n:String(n),a:addressText("S"+s,l,n),v});
-  }
- }
- return out;
-}
-function findAddresses(article){
- const q=compact(article); if(!q)return [];
- return cellEntries().filter(c=>compact(c.v).includes(q)).map(c=>c.a);
-}
-function coords(s,l,n){
- const street=Number(String(s).replace("S",""));
- const letters=left.includes(l)?left:right;
- const sideIndex=letters.indexOf(l);
- const xBase=[18,38,58,78,91][street-1]||50;
- const sideShift=left.includes(l)?-2.8:2.8;
- let y=n>=4?48-((n-4)/6)*35:88-((n-1)/2)*22;
- return {x:Math.max(2,Math.min(98,xBase+sideShift)),y:Math.max(3,Math.min(97,y))};
-}
-function drawMarkers(){
- const root=$("#markers");root.innerHTML="";
- addresses.forEach((arr,a)=>{
-  const first=arr[0];const c=coords(first.s,first.l,first.n);
-  const el=document.createElement("button");el.className="marker";el.style.left=c.x+"%";el.style.top=c.y+"%";el.dataset.address=a;
-  el.innerHTML='<span>'+a+'</span>';el.title=arr.map(x=>x.a).join(", ");
-  el.onclick=()=>selectAddress(a);
-  root.appendChild(el);
- });
-}
-function selectAddress(a){
- activeAddress=a;
- document.querySelectorAll(".marker").forEach(x=>x.classList.toggle("active",x.dataset.address===a));
- document.querySelectorAll(".address").forEach(x=>x.classList.toggle("active",x.dataset.address===a));
- $("#mapStatus").textContent=a;
- const marker=document.querySelector('.marker[data-address="'+CSS.escape(a)+'"]');
- if(marker){marker.scrollIntoView({behavior:"smooth",block:"center"});}
-}
-function buildAddresses(list=results){
- addresses.clear();
- list.forEach(item=>{
-   for(const c of cellEntries()){
-    if(compact(c.v).includes(compact(item.catalog_number))){
-      if(!addresses.has(c.a))addresses.set(c.a,[]);
-      addresses.get(c.a).push({...c,item});
-    }
-   }
- });
- $("#addressCount").textContent=addresses.size;
- $("#addressGrid").innerHTML=addresses.size?[...addresses.entries()].map(([a,items])=>'<div class="address" data-address="'+escapeHtml(a)+'" onclick="selectAddress('+JSON.stringify(a)+')"><b>'+escapeHtml(a)+'</b><small>'+items.length+' совпадений</small></div>').join(""):'<div class="empty">Для найденных деталей адреса в карте склада не найдены.</div>';
- drawMarkers();
-}
-function showOnMap(i){const item=results[i];buildAddresses([item]);const ad=findAddresses(item.catalog_number)[0];if(ad)selectAddress(ad);document.querySelector(".map-section").scrollIntoView({behavior:"smooth",block:"start"});}
-window.showOnMap=showOnMap;
-window.selectAddress=selectAddress;
-
-async function loadWarehouse(){
- try{
-   const snap=await warehouseDb.ref("warehouse/cells").once("value");
-   warehouse=snap.val()||{};
-   if(results.length)buildAddresses(results);
- }catch(e){console.error(e);$("#mapStatus").textContent="Не удалось получить карту склада";}
+ render(list,"Подбор по автомобилю");
 }
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove("show"),1800)}
 async function handleExcel(file){
@@ -255,13 +184,11 @@ loadCatalog();initStats();populateBrands();
 if(catalog.length)render(catalog.slice(0,100),"Каталог склада");else render([],"Каталог склада");
 
 const ampApp=firebase.initializeApp(ampFirebaseConfig);
-const warehouseApp=firebase.initializeApp(warehouseFirebaseConfig,"warehouse");
 const auth=firebase.auth(ampApp);
 const ampStorage=firebase.storage(ampApp);
-const warehouseDb=firebase.database(warehouseApp);
 $("#loginBtn").onclick=async()=>{try{await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())}catch(e){$("#loginError").textContent=(e.code||"firebase/error")+": "+(e.message||"Ошибка входа")}};
 $("#logoutBtn").onclick=()=>auth.signOut();
 auth.onAuthStateChanged(async user=>{
  $("#login").classList.toggle("hidden",!!user);
- if(user){await loadWarehouse();await downloadCatalogFromStorage();if(catalog.length)buildAddresses(results)}
+ if(user){await downloadCatalogFromStorage()}
 });
