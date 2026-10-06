@@ -252,16 +252,47 @@
     const rows = crossRowsForQuery(q);
     if (!rows.length) return [];
 
-    // Кроссы — это дополнительные позиции под заказ.
-    // Если такой артикул уже есть на складе, это НЕ повод удалять заказ:
-    // пользователь должен видеть оба варианта.
+    // Кроссы могут содержать наши AMParts-артикулы.
+    // Они не должны становиться "ПОД ЗАКАЗ": если товара нет на складе,
+    // показываем честный статус "НЕТ В НАЛИЧИИ".
     const result = [];
     const seen = new Set();
+    const ownStockArticles = window.ownStockArticles || new Set();
 
     for (const row of rows) {
       const key = compact(row.article);
       if (!key || seen.has(key)) continue;
       seen.add(key);
+
+      const ownByArticle = ownStockArticles.has(key);
+      const ownByManufacturer =
+        typeof window.isOwnManufacturer === "function"
+          ? window.isOwnManufacturer(row.brand || "")
+          : compact(row.brand || "") === "amparts";
+
+      if (ownByArticle) {
+        // Наш склад уже должен вывести эту деталь зелёной.
+        continue;
+      }
+
+      if (ownByManufacturer) {
+        result.push(
+          typeof window.makeUnavailableOwnPart === "function"
+            ? window.makeUnavailableOwnPart(row, q)
+            : {
+                _unavailable: true,
+                _order: false,
+                _amparts: true,
+                catalog_number: row.article,
+                manufacturer_parts: row.brand || "AMPARTS",
+                original_number: row.oem || q,
+                name: "Деталь " + row.article,
+                quantity: 0,
+                price: ""
+              }
+        );
+        continue;
+      }
 
       result.push({
         _order: true,
@@ -301,6 +332,13 @@
     const extraOrders = orders.filter(item => {
       const key = compact(item.catalog_number);
       if (!key || seen.has(key)) return false;
+
+      // "НЕТ В НАЛИЧИИ" — отдельный собственный товар, не заказ.
+      if (item._unavailable) {
+        seen.add(key);
+        return true;
+      }
+
       seen.add(key);
       return true;
     });
