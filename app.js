@@ -162,32 +162,27 @@ function stockOnly(rows) {
 ========================= */
 
 function initStats() {
+  // Карточки статистики удалены из интерфейса.
+  // Оставляем функцию безопасной для старого кода/кэша.
+  const stockEl = $("#stockCount");
+  const brandEl = $("#brandCount");
+  if (!stockEl && !brandEl) return;
 
-  const brands =
-    new Set();
-
+  const brands = new Set();
   catalog.forEach(x => {
-
-    String(
-      x.marks || ""
-    )
+    String(x.marks || "")
       .split(",")
       .map(v => v.trim())
       .filter(Boolean)
-      .forEach(v =>
-        brands.add(
-          v.toLowerCase()
-        )
-      );
+      .forEach(v => brands.add(v.toLowerCase()));
   });
 
-  $("#stockCount").textContent =
-    catalog.length.toLocaleString(
-      "ru-RU"
-    );
-
-  $("#brandCount").textContent =
-    brands.size;
+  if (stockEl) {
+    stockEl.textContent = catalog.length.toLocaleString("ru-RU");
+  }
+  if (brandEl) {
+    brandEl.textContent = brands.size;
+  }
 }
 
 /* =========================
