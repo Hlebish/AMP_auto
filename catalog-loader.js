@@ -103,7 +103,7 @@
     // Подбор автомобиля работает только по товарам, реально присутствующим в каталоге.
     catalogForCar = function(brand = "", model = "", engine = "") {
       const b = norm(brand), m = norm(model), e = norm(engine);
-      return stockOnly(catalog).filter(item =>
+      return catalog.filter(item =>
         hasValue(item.marks, b) &&
         hasValue(item.models, m) &&
         hasValue(item.engine, e)
