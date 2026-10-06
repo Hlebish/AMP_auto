@@ -1326,3 +1326,112 @@ downloadCatalogFromStorage = async function() {
   // Старый Storage-метод остаётся запасным вариантом.
   return __originalDownloadCatalogFromStorage();
 };
+
+
+/* =========================
+   REALTIME DATABASE CATALOG SYNC
+   Используем уже созданную RTDB.
+========================= */
+const RTDB_CHUNK_SIZE = 250;
+let ampRealtimeDb = null;
+
+function getAmpRealtimeDb() {
+  if (!ampRealtimeDb) {
+    ampRealtimeDb = firebase.database(ampApp);
+  }
+  return ampRealtimeDb;
+}
+
+async function saveCatalogToRealtimeDatabase(rows) {
+  const db = getAmpRealtimeDb();
+  const chunks = {};
+
+  for (let i = 0; i < rows.length; i += RTDB_CHUNK_SIZE) {
+    chunks[String(i / RTDB_CHUNK_SIZE)] = rows.slice(i, i + RTDB_CHUNK_SIZE);
+  }
+
+  await db.ref("catalog/chunks").set(chunks);
+  await db.ref("catalog/meta").set({
+    count: rows.length,
+    chunks: Object.keys(chunks).length,
+    version: Date.now()
+  });
+}
+
+async function loadCatalogFromRealtimeDatabase() {
+  const db = getAmpRealtimeDb();
+  const snap = await db.ref("catalog").once("value");
+  const data = snap.val();
+
+  if (!data || !data.meta || !data.chunks) return false;
+
+  const rows = [];
+  Object.keys(data.chunks)
+    .sort((a, b) => Number(a) - Number(b))
+    .forEach(key => {
+      const part = data.chunks[key];
+      if (Array.isArray(part)) rows.push(...part);
+      else if (part && typeof part === "object") {
+        Object.keys(part).sort((a,b) => Number(a)-Number(b)).forEach(k => {
+          if (part[k]) rows.push(part[k]);
+        });
+      }
+    });
+
+  const stock = stockOnly(rows);
+  if (!stock.length) return false;
+
+  catalog = stock;
+  saveCatalog();
+  saveCatalogVersion(String(data.meta.version || ""));
+  initStats();
+  populateBrands();
+  render(catalog.slice(0, 100), "Каталог склада");
+  toast("✅ Каталог загружен: " + catalog.length + " артикулов");
+  return true;
+}
+
+uploadCatalogToStorage = async function(file) {
+  if (!file) throw new Error("Файл не выбран");
+  if (!auth.currentUser) throw new Error("Сначала войдите через Google");
+
+  toast("🔄 Обрабатываю Excel…");
+  const rows = await parseExcel(file);
+
+  if (!rows.length) {
+    throw new Error("В Excel нет товаров в наличии");
+  }
+
+  toast("📤 Загружаю каталог: 0%");
+  await saveCatalogToRealtimeDatabase(rows);
+
+  catalog = rows;
+  saveCatalog();
+  saveCatalogVersion(String(Date.now()));
+  initStats();
+  populateBrands();
+  render(catalog.slice(0, 100), "Каталог склада");
+
+  toast("✅ Каталог загружен: " + catalog.length + " артикулов");
+  return true;
+};
+
+downloadCatalogFromStorage = async function() {
+  try {
+    const ok = await loadCatalogFromRealtimeDatabase();
+    if (ok) return true;
+  } catch (e) {
+    console.error("Realtime Database catalog error:", e);
+  }
+
+  if (catalog.length) {
+    initStats();
+    populateBrands();
+    render(catalog.slice(0, 100), "Каталог склада");
+    toast("⚠️ Используется сохранённый каталог");
+    return true;
+  }
+
+  toast("ℹ️ Каталог ещё не загружен");
+  return false;
+};
