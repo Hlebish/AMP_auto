@@ -729,12 +729,6 @@ function searchParts(q) {
 }
 
 async function searchCar() {
-  try {
-    if(window.fullCatalogReady) await window.fullCatalogReady;
-    if(window.ensureCrossDatabase) await window.ensureCrossDatabase();
-    if(window.ensureOrderCatalog) await window.ensureOrderCatalog();
-  } catch(e) {}
-
   const b=norm($("#brand")?.value);
   const m=String($("#model")?.value||"").trim();
   const selectedEngine=String($("#engine")?.value||"").trim();
@@ -744,51 +738,70 @@ async function searchCar() {
   const selectedBody=String($("#body")?.value||"").trim();
 
   if(!b){toast("⚠️ Выберите марку автомобиля");return;}
-  if(!m){toast("⚠️ Введите модель автомобиля");return;}
+  if(!m){toast("⚠️ Выберите модель автомобиля");return;}
 
-  const matched=catalog.filter(item=>{
-    if(!hasValue(item.marks,b)) return false;
-    if(!modelMatches(item,m)) return false;
-    if(selectedEngine&&!hasValue(item.engine,selectedEngine)) return false;
-    if(selectedYear&&!yearMatches(item,selectedYear)) return false;
-    if(selectedVolume&&!volumeMatches(item,selectedVolume)) return false;
-    if(selectedFuel&&fuelType(item)!==selectedFuel) return false;
-    if(selectedBody&&bodyType(item)!==selectedBody) return false;
-    return true;
-  });
+  const loading = window.startAppLoading?.("Подбираем детали…");
 
-  const stockList=matched.slice();
-
-  const orderByArticle=new Map();
-  if(Array.isArray(window.orderCatalog)){
-    for(const item of window.orderCatalog){
-      const key=compact(item.catalog_number);
-      if(key&&!orderByArticle.has(key)) orderByArticle.set(key,item);
+  try {
+    if(window.fullCatalogReady) {
+      loading?.setText("Проверяем каталог…");
+      await window.fullCatalogReady;
     }
-  }
+    if(window.ensureCrossDatabase) {
+      loading?.setText("Загружаем кроссы…");
+      await window.ensureCrossDatabase();
+    }
+    if(window.ensureOrderCatalog) {
+      loading?.setText("Загружаем товары под заказ…");
+      await window.ensureOrderCatalog();
+    }
 
-  const orderList=[], seenOrder=new Set();
-  for(const stockItem of matched){
-    const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
-    for(const oem of oems){
-      const rows=window.crossData?.by_oem?.[oem]||[];
-      for(const row of rows){
-        const article=compact(row.article);
-        if(!article||seenOrder.has(article)) continue;
-        const existing=orderByArticle.get(article);
-        const item=existing
-          ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
-          : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:"Деталь "+row.article,original_number:row.oem||"",quantity:0,price:""};
-        seenOrder.add(article); orderList.push(item);
+    const matched=catalog.filter(item=>{
+      if(!hasValue(item.marks,b)) return false;
+      if(!modelMatches(item,m)) return false;
+      if(selectedEngine&&!hasValue(item.engine,selectedEngine)) return false;
+      if(selectedYear&&!yearMatches(item,selectedYear)) return false;
+      if(selectedVolume&&!volumeMatches(item,selectedVolume)) return false;
+      if(selectedFuel&&fuelType(item)!==selectedFuel) return false;
+      if(selectedBody&&bodyType(item)!==selectedBody) return false;
+      return true;
+    });
+
+    const stockList=matched.slice();
+
+    const orderByArticle=new Map();
+    if(Array.isArray(window.orderCatalog)){
+      for(const item of window.orderCatalog){
+        const key=compact(item.catalog_number);
+        if(key&&!orderByArticle.has(key)) orderByArticle.set(key,item);
       }
     }
+
+    const orderList=[], seenOrder=new Set();
+    for(const stockItem of matched){
+      const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
+      for(const oem of oems){
+        const rows=window.crossData?.by_oem?.[oem]||[];
+        for(const row of rows){
+          const article=compact(row.article);
+          if(!article||seenOrder.has(article)) continue;
+          const existing=orderByArticle.get(article);
+          const item=existing
+            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||""}
+            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",catalog_number:row.article,manufacturer_parts:row.brand||"",name:"Деталь "+row.article,original_number:row.oem||"",quantity:0,price:""};
+          seenOrder.add(article); orderList.push(item);
+        }
+      }
+    }
+
+    const list=[...stockList,...orderList];
+    const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
+    render(list,"Подбор: "+titleParts.join(" · "));
+
+    setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+  } finally {
+    loading?.stop();
   }
-
-  const list=[...stockList,...orderList];
-  const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
-  render(list,"Подбор: "+titleParts.join(" · "));
-
-  setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
 }
 
 /* =========================
