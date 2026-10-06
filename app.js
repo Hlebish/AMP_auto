@@ -1,13 +1,3 @@
-const ampFirebaseConfig = {
-  apiKey: "AIzaSyD_e0H_aH25JnpULvyEwUSSeZoOAxJVBt8",
-  authDomain: "amp-auto.firebaseapp.com",
-  projectId: "amp-auto",
-  databaseURL: "https://amp-auto-default-rtdb.firebaseio.com",
-  storageBucket: "amp-auto.firebasestorage.app",
-  messagingSenderId: "305575986701",
-  appId: "1:305575986701:web:424e1d1e14a2855274f744"
-};
-
 const $ = s => document.querySelector(s);
 
 const norm = v =>
