@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v4";
+  const VERSION = "20261006-idb-v5";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
@@ -305,6 +305,7 @@
         await idbPut(CROSS_STORE, { key: xKey, version: crossManifest.version, data });
         installCrosses(data);
         window.crossReady = Promise.resolve(true);
+        return true;
       })());
     }
 
@@ -314,6 +315,8 @@
     return true;
   }
 
+  let crossLoadPromise = null;
+  let activeCrossManifest = null;
   let orderLoadPromise = null;
   let activeOrderManifest = null;
 
@@ -364,6 +367,54 @@
 
   window.ensureOrderCatalog = ensureOrderCatalog;
 
+  async function ensureCrossDatabase() {
+    if (window.crossData &&
+        window.crossData.by_oem &&
+        Object.keys(window.crossData.by_oem).length) {
+      return true;
+    }
+    if (crossLoadPromise) return crossLoadPromise;
+
+    if (!activeCrossManifest) {
+      try {
+        activeCrossManifest = await getManifest("crosses/manifest.json");
+      } catch (e) {
+        console.warn("AMP Auto cross manifest:", e);
+        return false;
+      }
+    }
+
+    crossLoadPromise = (async () => {
+      try {
+        const key = crossKey(activeCrossManifest);
+        const cached = await idbGet(CROSS_STORE, key);
+        let data = cached && cached.data
+          ? cached.data
+          : await downloadCrossDatabase(activeCrossManifest);
+
+        if (!cached) {
+          await idbPut(CROSS_STORE, {
+            key,
+            version: activeCrossManifest.version,
+            data
+          });
+        }
+
+        installCrosses(data);
+        window.crossReady = Promise.resolve(true);
+        return true;
+      } catch (e) {
+        console.warn("AMP Auto cross database load:", e);
+        window.crossReady = Promise.resolve(false);
+        return false;
+      }
+    })();
+
+    return crossLoadPromise;
+  }
+
+  window.ensureCrossDatabase = ensureCrossDatabase;
+
   window.fullCatalogReady = (async () => {
     try {
       // Manifest'ы маленькие — их проверяем всегда, сам каталог нет.
@@ -372,6 +423,7 @@
         getManifest("crosses/manifest.json"),
         getManifest("orders/manifest.json")
       ]);
+      activeCrossManifest = crossManifest;
       activeOrderManifest = orderManifest;
 
       const cached = await useCache(manifest, crossManifest, orderManifest);
