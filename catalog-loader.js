@@ -2,11 +2,12 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261006-idb-v1";
+  const VERSION = "20261006-idb-v2";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 1;
   const CATALOG_STORE = "catalog";
   const CROSS_STORE = "crosses";
+  const ORDER_STORE = "orders";
 
   function openDB() {
     return new Promise((resolve, reject) => {
@@ -18,6 +19,9 @@
         }
         if (!db.objectStoreNames.contains(CROSS_STORE)) {
           db.createObjectStore(CROSS_STORE, { keyPath: "key" });
+        }
+        if (!db.objectStoreNames.contains(ORDER_STORE)) {
+          db.createObjectStore(ORDER_STORE, { keyPath: "key" });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -56,6 +60,10 @@
     return "catalog:" + String(manifest.version || manifest.source || "default");
   }
 
+  function orderKey(manifest) {
+    return "orders:" + String(manifest.version || manifest.source || "default");
+  }
+
   function crossKey(manifest) {
     return "crosses:" + String(manifest.version || manifest.source || "default");
   }
@@ -91,6 +99,49 @@
       }
     }
     return rows;
+  }
+
+  function unpackOrder(r) {
+    return {
+      catalog_number: r.c || "",
+      manufacturer_parts: r.p || "",
+      name: r.n || "",
+      description: "",
+      quantity: 0,
+      price: r.pr ?? "",
+      original_number: "",
+      marks: "",
+      models: "",
+      engine: "",
+      image: "",
+      source: "order",
+      _order: true,
+      _order_brand: r.p || "",
+      _order_oem: ""
+    };
+  }
+
+  async function downloadOrders(manifest) {
+    const rows = [];
+    const count = Number(manifest.chunks || 0);
+    for (let i = 0; i < count; i++) {
+      const name = "orders/order-" + String(i).padStart(3, "0") + ".json";
+      const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+      if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+      const part = await res.json();
+      if (Array.isArray(part)) {
+        for (const row of part) rows.push(unpackOrder(row));
+      }
+    }
+    return rows;
+  }
+
+  function installOrders(rows, silent = false) {
+    orderCatalog = Array.isArray(rows) ? rows : [];
+    window.orderCatalog = orderCatalog;
+    if (!silent && typeof searchParts === "function") {
+      render(catalog.slice(0, 100), "Каталог склада");
+    }
   }
 
   async function downloadCrossDatabase(manifest) {
@@ -144,15 +195,23 @@
     window.crossData = data || { by_oem: {}, by_article: {} };
   }
 
-  async function useCache(manifest, crossManifest) {
-    const [cachedCatalog, cachedCrosses] = await Promise.all([
+  async function useCache(manifest, crossManifest, orderManifest) {
+    const [cachedCatalog, cachedCrosses, cachedOrders] = await Promise.all([
       idbGet(CATALOG_STORE, catalogKey(manifest)),
-      idbGet(CROSS_STORE, crossKey(crossManifest))
+      idbGet(CROSS_STORE, crossKey(crossManifest)),
+      idbGet(ORDER_STORE, orderKey(orderManifest))
     ]);
 
     if (!cachedCatalog || !Array.isArray(cachedCatalog.rows)) return false;
 
     installCatalog(cachedCatalog.rows, true);
+
+    if (cachedOrders && Array.isArray(cachedOrders.rows)) {
+      installOrders(cachedOrders.rows, true);
+      window.orderReady = Promise.resolve(true);
+    } else {
+      window.orderReady = Promise.resolve(false);
+    }
 
     if (cachedCrosses && cachedCrosses.data) {
       installCrosses(cachedCrosses.data);
@@ -164,13 +223,15 @@
     return true;
   }
 
-  async function refreshIfNeeded(manifest, crossManifest) {
+  async function refreshIfNeeded(manifest, crossManifest, orderManifest) {
     const cKey = catalogKey(manifest);
     const xKey = crossKey(crossManifest);
+    const oKey = orderKey(orderManifest);
 
-    const [cachedCatalog, cachedCrosses] = await Promise.all([
+    const [cachedCatalog, cachedCrosses, cachedOrders] = await Promise.all([
       idbGet(CATALOG_STORE, cKey),
-      idbGet(CROSS_STORE, xKey)
+      idbGet(CROSS_STORE, xKey),
+      idbGet(ORDER_STORE, oKey)
     ]);
 
     const tasks = [];
@@ -181,6 +242,16 @@
         await idbPut(CATALOG_STORE, { key: cKey, version: manifest.version, rows });
         installCatalog(rows, true);
       })());
+    }
+
+    if (!cachedOrders) {
+      const task = (async () => {
+        const rows = await downloadOrders(orderManifest);
+        await idbPut(ORDER_STORE, { key: oKey, version: orderManifest.version, rows });
+        installOrders(rows, true);
+        window.orderReady = Promise.resolve(true);
+      })();
+      tasks.push(task);
     }
 
     if (!cachedCrosses) {
@@ -199,23 +270,24 @@
   window.fullCatalogReady = (async () => {
     try {
       // Manifest'ы маленькие — их проверяем всегда, сам каталог нет.
-      const [manifest, crossManifest] = await Promise.all([
+      const [manifest, crossManifest, orderManifest] = await Promise.all([
         getManifest("catalog/manifest.json"),
-        getManifest("crosses/manifest.json")
+        getManifest("crosses/manifest.json"),
+        getManifest("orders/manifest.json")
       ]);
 
-      const cached = await useCache(manifest, crossManifest);
+      const cached = await useCache(manifest, crossManifest, orderManifest);
 
       // Если кэш есть — сайт уже работает. Обновление делаем в фоне.
       if (cached) {
         window.fullCatalogReady = Promise.resolve(true);
-        refreshIfNeeded(manifest, crossManifest).catch(e =>
+        refreshIfNeeded(manifest, crossManifest, orderManifest).catch(e =>
           console.warn("AMP Auto background cache refresh:", e)
         );
         return true;
       }
 
-      await refreshIfNeeded(manifest, crossManifest);
+      await refreshIfNeeded(manifest, crossManifest, orderManifest);
       return true;
     } catch (e) {
       console.error("AMP Auto catalog cache failed:", e);
