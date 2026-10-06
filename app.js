@@ -1397,6 +1397,15 @@ uploadCatalogToStorage = async function(file) {
 
 downloadCatalogFromStorage = async function() {
   try {
+    if (window.fullCatalogReady) {
+      const ok = await window.fullCatalogReady;
+      if (ok) return true;
+    }
+  } catch (e) {
+    console.warn("Full static catalog unavailable:", e);
+  }
+
+  try {
     const ok = await loadCatalogFromRealtimeDatabase();
     if (ok) return true;
   } catch (e) {
@@ -1406,8 +1415,7 @@ downloadCatalogFromStorage = async function() {
   if (catalog.length) {
     initStats();
     populateBrands();
-    render(catalog.slice(0, 100), "Каталог склада");
-    toast("⚠️ Используется сохранённый каталог");
+    render(catalog.slice(0, 100), "Каталог товаров");
     return true;
   }
 
