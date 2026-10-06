@@ -4,7 +4,7 @@
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
   const VERSION = "20261006-idb-v2";
   const DB_NAME = "amp_auto_cache";
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const CATALOG_STORE = "catalog";
   const CROSS_STORE = "crosses";
   const ORDER_STORE = "orders";
