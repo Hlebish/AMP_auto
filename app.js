@@ -105,7 +105,7 @@ function render(list,title="Каталог склада"){
 function searchParts(q){
  if(!q.trim()){render(catalog.slice(0,100),"Каталог склада");return}
  const scored=catalog.map(x=>({x,s:scoreItem(x,q)})).filter(o=>o.s>0).sort((a,b)=>b.s-a.s);
- render(scored.map(o=>o.x),"Поиск: "+q);
+ render(scored.map(o=>o.x),"Поиск: "+q);buildAddresses(results);
 }
 function searchCar(){
  const b=norm($("#brand").value),m=norm($("#model").value),e=norm($("#engine").value);
@@ -115,7 +115,7 @@ function searchCar(){
    const engines=norm(x.engine).split(",").map(v=>v.trim());
    return (!b||brands.includes(b))&&(!m||models.includes(m))&&(!e||engines.includes(e));
  });
- render(list,"Подбор по автомобилю");
+ render(list,"Подбор по автомобилю");buildAddresses(results);
 }
 function addressText(s,l,n){return s+"-"+l+n}
 const left=["A","B","C","D","E"], right=["F","G","H","J","K"];
