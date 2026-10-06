@@ -848,45 +848,33 @@ function searchParts(q) {
 }
 
 function searchCar() {
+  const b = norm($("#brand").value);
+  const m = norm($("#model").value);
+  const e = norm($("#engine").value);
 
-  const b =
-    norm($("#brand").value);
+  if (!b) {
+    toast("⚠️ Выберите марку автомобиля");
+    return;
+  }
 
-  const m =
-    norm($("#model").value);
+  if (!m) {
+    toast("⚠️ Выберите модель автомобиля");
+    return;
+  }
 
-  const e =
-    norm($("#engine").value);
-
-  const list =
-    catalog.filter(x => {
-
-      const brands =
-        norm(x.marks)
-          .split(",")
-          .map(v => v.trim());
-
-      const models =
-        norm(x.models)
-          .split(",")
-          .map(v => v.trim());
-
-      const engines =
-        norm(x.engine)
-          .split(",")
-          .map(v => v.trim());
-
-      return (
-        (!b || brands.includes(b)) &&
-        (!m || models.includes(m)) &&
-        (!e || engines.includes(e))
-      );
-    });
+  const list = catalogForCar(b, m, e);
 
   render(
     list,
     "Подбор по автомобилю"
   );
+
+  setTimeout(() => {
+    document.querySelector(".results-section")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }, 50);
 }
 
 /* =========================
