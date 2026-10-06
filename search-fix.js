@@ -182,7 +182,71 @@
     .map(x => x.item);
   }
 
-  window.searchParts = function(q) {
+  function crossRowsForQuery(q) {
+    const db = window.crossData || {};
+    const byOem = db.by_oem || {};
+    const byArticle = db.by_article || {};
+    const key = compact(q);
+    if (!key) return [];
+
+    const direct = byOem[key] || [];
+    const reverse = byArticle[key] || [];
+
+    // Если ищем наш артикул — показываем его кроссы тоже.
+    const combined = [...direct, ...reverse];
+    const seen = new Set();
+
+    return combined.filter(x => {
+      const id = [x.article,x.brand,x.oem,x.oem_brand].join("|");
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }
+
+  function crossOrderResults(q, stockItems) {
+    const rows = crossRowsForQuery(q);
+    if (!rows.length) return [];
+
+    const stockKeys = new Set();
+    catalog.forEach(item => {
+      stockKeys.add(compact(item.catalog_number));
+      stockKeys.add(compact(item.manufacturer_parts));
+    });
+
+    // Для одного запроса сначала убираем то, что уже есть на складе.
+    const result = [];
+    const seen = new Set();
+
+    for (const row of rows) {
+      const key = compact(row.article);
+      if (!key || stockKeys.has(key) || seen.has(key)) continue;
+      seen.add(key);
+
+      result.push({
+        _order: true,
+        _order_brand: row.brand || "",
+        _order_oem: row.oem || q,
+        catalog_number: row.article,
+        manufacturer_parts: row.brand || "",
+        original_number: row.oem || q,
+        name: "Деталь " + row.article,
+        marks: row.oem_brand ? row.oem_brand.toUpperCase() : "",
+        quantity: "",
+      });
+    }
+
+    return result;
+  }
+
+  function mergeStockAndOrder(stockItems, q) {
+    const orders = crossOrderResults(q, stockItems);
+
+    // Жёсткий приоритет: весь склад выше любого "под заказ".
+    return [...stockItems, ...orders];
+  }
+
+  window.searchParts = async function(q) {
     const raw = String(q || "").trim();
 
     if (!raw) {
@@ -190,14 +254,22 @@
       return;
     }
 
+    // Ждём загрузку кроссов перед поиском, чтобы пользователь не получил
+    // неполный результат из-за скорости сети.
+    try {
+      if (window.crossReady) await window.crossReady;
+    } catch (e) {}
+
     const allTokens = words(raw);
     const tokens = allTokens.filter(t => !stopWords.has(t));
 
-    // Любая строка только из артикула/OEM сначала проходит точный поиск.
+    // Артикул/OEM: сначала точные товары на складе, затем товары под заказ.
     if (tokens.length === 1 && /^(?=.*[a-z])(?=.*\d)[a-z0-9-]{4,}$/i.test(tokens[0])) {
       const exact = articleSearch(tokens[0]);
-      if (exact.length) {
-        render(exact, "Поиск: " + raw);
+      const combined = mergeStockAndOrder(exact, tokens[0]);
+
+      if (combined.length) {
+        render(combined, "Поиск: " + raw);
         return;
       }
     }
@@ -205,8 +277,6 @@
     const brands = tokens.map(brandToken).filter(Boolean);
     const parts = tokens.map(partToken).filter(Boolean);
 
-    // Если в запросе есть несколько слов детали, учитываем порядок:
-    // "накладка капота" => накладка главная, капот контекст.
     const primaryPart = parts.length
       ? (tokens.map(partToken).find(Boolean) || parts[0])
       : null;
@@ -214,26 +284,21 @@
     const scored = catalog.map(item => {
       let score = 0;
 
-      // Бренд — обязательный фильтр, если пользователь его написал.
       if (brands.length) {
         if (!brands.every(b => brandMatches(item,b))) return null;
         score += 220;
       }
 
-      // Все типы деталей из запроса должны быть представлены.
       if (parts.length) {
         const partScores = parts.map(p => partScore(item,p));
         if (partScores.some(s => s <= 0)) return null;
 
-        // Главный тип детали имеет максимальный вес.
         score += partScores.reduce((a,b) => a+b, 0);
         score += Math.max(...partScores);
 
-        // Если пользователь написал точный тип первым — даём сильный бонус.
         if (primaryPart && partScore(item, primaryPart) >= 140) score += 160;
       }
 
-      // Контекстные слова: модель, кузов, поколение, сторона и т.п.
       for (const token of tokens) {
         if (brandToken(token) || partToken(token)) continue;
         score += genericMatchScore(item, token);
@@ -243,13 +308,11 @@
       const phrase = clean(tokens.join(" "));
       if (phrase && name.includes(phrase)) score += 120;
 
-      // Полное совпадение названия с типом детали — очень высокий приоритет.
       if (parts.length === 1 && primaryPart) {
         const ps = partScore(item, primaryPart);
         if (ps >= 140) score += 100;
       }
 
-      // Точный артикул всегда выше обычного текстового совпадения.
       if (item.catalog_number && compact(item.catalog_number) === compact(raw)) score += 5000;
 
       return { item, score };
@@ -258,6 +321,8 @@
     .filter(x => x.score > 0)
     .sort((a,b) => b.score - a.score);
 
-    render(scored.map(x => x.item), "Поиск: " + raw);
-  };
-})();
+    const stock = scored.map(x => x.item);
+    const combined = mergeStockAndOrder(stock, raw);
+
+    render(combined, "Поиск: " + raw);
+  };\n})();
