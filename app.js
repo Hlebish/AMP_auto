@@ -753,6 +753,46 @@ function populateCarFilters() {
 function populateEngines() { populateCarFilters(); }
 
 /* =========================
+   ФИЛЬТР ПО ТИПУ ДЕТАЛИ
+========================= */
+
+const PART_TYPES = {
+  капот:["капот","hood","bonnet"], крыло:["крыло","крыла","крылья","крило","wing","fender"],
+  бампер:["бампер","бамперы","bumper"], дверь:["дверь","двери","дверей","дверью","дверця","door"],
+  фара:["фара","фары","фар","headlight","headlamp"], фонарь:["фонарь","фонари","ліхтар","tail light","taillight"],
+  решетка:["решетка","решётка","решітка","grille"], зеркало:["зеркало","зеркала","дзеркало","mirror"],
+  стекло:["стекло","стекла","скло","glass"], подкрылок:["подкрылок","подкрылка","подкрылки","підкрилок","fender liner"],
+  усилитель:["усилитель","усилителя","підсилювач","reinforcement"], накладка:["накладка","накладки","накладку","накладок","накладні"],
+  облицовка:["облицовка","облицовки","облицювання","trim"], замок:["замок","замка","замку","lock","latch"],
+  ручка:["ручка","ручки","ручку","handle"], молдинг:["молдинг","молдинги","molding"],
+  спойлер:["спойлер","спойлера","spoiler"], крышка:["крышка","крышки","крышку","кришка","cover"],
+  защита:["защита","защиты","защиту","захист","guard"], поршень:["поршень","поршни","поршня","поршней","piston","pistons"],
+  колодка:["колодка","колодки","тормозная колодка","brake pad"], диск:["диск","диски","тормозной диск","brake disc"],
+  фильтр:["фильтр","фильтры","filter"], свеча:["свеча","свечи","свеча зажигания","spark plug"],
+  пластик:["пластик","пластика","пластиковый","пластиковая","пластикове","plastic"]
+};
+
+let activePartType = "";
+let lastRenderedList = [];
+
+function detectPartType(item) {
+  const text = norm([
+    item?.name,item?.description,item?.manufacturer_parts,item?.catalog_number,
+    item?.original_number,item?.a,item?.n
+  ].filter(Boolean).join(" "));
+  if (!text) return "";
+  for (const [type, aliases] of Object.entries(PART_TYPES)) {
+    if (aliases.some(alias => text.includes(norm(alias)))) return type;
+  }
+  return "";
+}
+
+function filterByPartType(list) {
+  if (!activePartType) return list;
+  return list.filter(item => (item?._partType || detectPartType(item)) === activePartType);
+}
+
+/* =========================
    РЕЗУЛЬТАТЫ
 ========================= */
 
@@ -761,18 +801,20 @@ function render(
   title = "Каталог склада"
 ) {
 
-  results =
-    list.slice(0, 300);
+  lastRenderedList = Array.isArray(list) ? list.slice() : [];
+  results = lastRenderedList.slice(0, 300);
+  const filteredList = filterByPartType(lastRenderedList);
 
-  $("#resultTitle").textContent =
-    title +
-    (
-      list.length > 300
-        ? " · первые 300"
-        : ""
-    );
+  const titleEl = $("#resultTitle");
+  const baseTitle = title + (list.length > 300 ? " · первые 300" : "");
+  if (titleEl) {
+    titleEl.dataset.baseTitle = baseTitle;
+    titleEl.textContent = activePartType
+      ? baseTitle + " · " + ($("#partTypeFilter")?.selectedOptions?.[0]?.textContent || activePartType)
+      : baseTitle;
+  }
 
-  if (!list.length) {
+  if (!filteredList.length) {
 
     $("#results").innerHTML =
       '<div class="empty">' +
@@ -1039,6 +1081,7 @@ async function searchCar() {
               item._order_offer_brand = firstOrderRow.brand || "";
             }
 
+            item._partType = detectPartType(stockItem);
             seenOwnUnavailable.add(article);
             orderList.push(item);
             continue;
@@ -1048,6 +1091,7 @@ async function searchCar() {
           const item=existing
             ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || ""}
             : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || "",catalog_number:row.article,manufacturer_parts:row.brand||"",name:row.article,original_number:row.oem||"",quantity:0,price:""};
+          item._partType = detectPartType(stockItem);
           seenOrder.add(article);
           orderList.push(item);
         }
@@ -1138,11 +1182,20 @@ $("#model").onchange=()=>{
 $("#year").onchange=()=>{};
 $("#volume").onchange=()=>{};
 
+$("#partTypeFilter").onchange=()=>{
+  activePartType = String($("#partTypeFilter")?.value || "");
+  render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада");
+};
+
 $("#clearBtn").onclick=()=>{
   if($("#brand")) $("#brand").value="";
   if($("#model")) $("#model").value="";
   if($("#year")) $("#year").value="";
   if($("#volume")) $("#volume").value="";
+  if($("#fuel")) $("#fuel").value="";
+  if($("#body")) $("#body").value="";
+  if($("#partTypeFilter")) $("#partTypeFilter").value="";
+  activePartType = "";
   populateModels();
   render([],"Выберите автомобиль");
 };
