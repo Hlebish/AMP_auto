@@ -528,17 +528,19 @@
 
   async function getGlobalImportState() {
     try {
-      const cfgRes = await fetch("/__/firebase/init.json", { cache: "no-store" });
-      if (!cfgRes.ok) return null;
-      const cfg = await cfgRes.json();
-      if (!cfg?.storageBucket) return null;
+      // AMP Auto работает через GitHub Pages, поэтому Firebase Hosting
+      // endpoint /__/firebase/init.json здесь не существует и давал 404.
+      // Используем тот же публичный Firebase Storage bucket напрямую.
+      const storageBucket = "amp-auto.firebasestorage.app";
       const url =
         "https://firebasestorage.googleapis.com/v0/b/" +
-        encodeURIComponent(cfg.storageBucket) +
+        encodeURIComponent(storageBucket) +
         "/o/" + encodeURIComponent("catalog/imports/current.json") +
         "?alt=media&t=" + Date.now();
+
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return null;
+
       const data = await res.json();
       return Array.isArray(data?.rows) ? data : null;
     } catch (e) {
