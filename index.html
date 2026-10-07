@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>AMP Auto — подбор автозапчастей</title>
 <meta name="description" content="Подбор автозапчастей по автомобилю: марка, модель, год, двигатель, объём, тип топлива и кузов. Склад и товары под заказ.">
-<link rel="stylesheet" href="styles.css?v=20261007-7">
+<link rel="stylesheet" href="styles.css?v=20261007-8">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="shortcut icon" href="favicon.svg">
 </head>
@@ -23,6 +23,12 @@
     <h1>Подбор запчастей.</h1>
     <p>Выберите автомобиль — сайт покажет подходящие детали со склада и варианты под заказ. Основной подбор: марка и модель. Остальные параметры помогают точнее отфильтровать автомобиль.</p>
   </div>
+  <div class="article-search-box">
+    <div class="picker-title">🔎 Поиск по артикулу</div>
+    <div class="article-search-row">
+      <input id="articleSearchInput" type="text" inputmode="text" autocomplete="off" spellcheck="false" placeholder="Введите точный артикул">
+      <button id="articleSearchBtn" class="primary">Найти</button>
+    </div>
   <div class="search-box vehicle-picker">
     <div class="picker-title">🚗 Выберите автомобиль</div>
     <div id="carMode" class="mode">
