@@ -119,3 +119,11 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
     max-width:calc(100vw - 72px);
   }
 }
+
+
+/* Part type filter */
+.result-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.result-tools select{min-width:190px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:9px 12px;color:var(--text);font-weight:750;outline:0}
+.result-tools select:focus{border-color:var(--accent)}
+@media(max-width:700px){.result-tools{width:100%}.result-tools select{flex:1;min-width:0}.result-tools .secondary{white-space:nowrap}}
+@media(max-width:560px){.section-head{align-items:stretch;flex-direction:column;gap:10px}.result-tools{display:grid;grid-template-columns:1fr auto}.result-tools select{width:100%}}
