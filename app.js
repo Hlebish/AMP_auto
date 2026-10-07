@@ -843,7 +843,23 @@ function render(
 ) {
 
   const sourceList = mergeStockDuplicates(list);
-  lastRenderedList = sourceList.slice();
+
+  // Один и тот же артикул не показываем одновременно со склада
+  // и как "ПОД ЗАКАЗ". Наличие складской позиции имеет приоритет.
+  const stockArticleKeys = new Set(
+    sourceList
+      .filter(item => item && !item._order && !item._unavailable)
+      .map(item => compact(item.catalog_number || ""))
+      .filter(Boolean)
+  );
+
+  const visibleSourceList = sourceList.filter(item => {
+    if (!item?._order && !item?._unavailable) return true;
+    const article = compact(item.catalog_number || "");
+    return !article || !stockArticleKeys.has(article);
+  });
+
+  lastRenderedList = visibleSourceList.slice();
   const filteredList = filterByPartType(lastRenderedList);
   const displayList = showAll ? filteredList : filteredList.slice(0, 300);
   results = displayList.slice();
