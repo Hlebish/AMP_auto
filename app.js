@@ -67,7 +67,8 @@ const compact = v => (typeof window.normalizePartNumber === "function" ? window.
 
 function isOwnManufacturer(value) {
   const key = compact(value);
-  return key === "amparts" || key.startsWith("amparts");
+  // compact()/normalizePartNumber() возвращает верхний регистр.
+  return key === "AMPARTS" || key.startsWith("AMPARTS");
 }
 
 function isOwnArticle(article, manufacturer = "") {
