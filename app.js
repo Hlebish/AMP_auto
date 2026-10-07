@@ -387,7 +387,13 @@ function extractYears(item) {
   const ranges = [];
   const rangeRe = /\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})?/g;
   let m;
-  while ((m = rangeRe.exec(text))) ranges.push({from:Number(m[1]),to:m[2]?Number(m[2]):null});
+  while ((m = rangeRe.exec(text))) {
+    const from = Number(m[1]);
+    // "2012-" means the fitment is open-ended, so keep all years
+    // after the start year available in the selector as well.
+    const to = m[2] ? Number(m[2]) : 2035;
+    ranges.push({from, to});
+  }
   if (ranges.length) return ranges;
   return [...text.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>({from:Number(x[1]),to:Number(x[1])}));
 }
