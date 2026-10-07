@@ -195,16 +195,19 @@
     const ownUnavailableSeen = new Set();
     const unavailableAmparts = [];
 
+    // ВАЖНО: не удаляем заказную позицию только потому, что такой же
+    // артикул уже есть на складе. Поиск по артикулу должен видеть ОБЕ
+    // записи: складскую и заказную.
+    //
+    // При подборе автомобиля заказные дубли всё равно отсекаются
+    // в app.js через ownStockArticles, поэтому здесь безопасно хранить
+    // полный внешний прайс.
     orderCatalog = allRows.filter(item => {
-      const key = compact(item.catalog_number);
-      const ownByArticle = key && ownStockArticles.has(key);
       const ownByManufacturer =
         isAmpartsManufacturer(item.manufacturer_parts || item._order_brand || "");
 
-      // Наш склад имеет приоритет над любым внешним прайсом.
-      if (ownByArticle) return false;
-
-      // AMParts никогда не попадает в "ПОД ЗАКАЗ".
+      // AMParts никогда не попадает в "ПОД ЗАКАЗ" — его отсутствие
+      // обрабатывается отдельно через ampatsUnavailableCatalog.
       if (ownByManufacturer) return false;
 
       return !item._amparts;
