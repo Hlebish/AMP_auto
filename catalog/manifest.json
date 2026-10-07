@@ -1,9 +1,9 @@
 {
-  "version": "20261006-stock-v2",
+  "version": "20261007-stock-v3",
   "source": "products_1_8125(4).xlsx",
-  "count": 2739,
-  "uniqueArticles": 2342,
-  "chunks": 6,
+  "count": 8699,
+  "uniqueArticles": 6087,
+  "chunks": 19,
   "chunkSize": 500,
-  "quantityRule": "quantity > 0"
+  "quantityRule": "all catalog rows; quantity > 0 means in stock"
 }
