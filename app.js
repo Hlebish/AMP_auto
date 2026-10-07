@@ -1545,7 +1545,7 @@ function modelFamily(value) {
   let s = norm(value)
     .replace(/\([^)]*\)/g, " ")
     .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
-    .replace(/\b(i{1,3}|iv|v)\b/g, " ");
+;
 
   // Цифры являются частью названия модели и НЕ должны удаляться:
   // CX 5, Mazda 3, Series 3 и т.п. — это разные модели/семейства.
@@ -1561,7 +1561,7 @@ function modelFamily(value) {
 function canonicalModel(value) {
   let s = norm(value)
     .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
-    .replace(/\b(i{1,3}|iv|v)\b/g, " ");
+;
 
   // Не удаляем отдельные числовые токены: цифра может быть частью
   // реального названия модели (например, "CX 5").
