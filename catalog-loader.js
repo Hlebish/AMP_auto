@@ -70,13 +70,13 @@
 
   function unpack(r) {
     return {
-      catalog_number: r.c || "",
+      catalog_number: r.c || "",\n      search_key: compact(r.c || ""),
       manufacturer_parts: r.p || "",
       name: typeof cleanPartName === "function" ? cleanPartName(r.n || "") : r.n || "",
       description: r.d || "",
       quantity: r.q ?? "",
       price: r.pr ?? "",
-      original_number: r.o || "",
+      original_number: r.o || "",\n      original_search_key: compact(r.o || ""),
       marks: r.b || "",
       models: r.m || "",
       engine: r.e || "",
