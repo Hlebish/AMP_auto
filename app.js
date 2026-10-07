@@ -379,7 +379,7 @@ function hasValue(field, wanted) {
 }
 
 function textOf(item) {
-  return [item.name,item.description,item.models,item.engine].filter(Boolean).join(" ");
+  return [item.name,item.models,item.engine].filter(Boolean).join(" ");
 }
 
 function extractYears(item) {
@@ -1854,6 +1854,7 @@ function vehicleFitmentMatches(item, {
 
   // Для подбора автомобиля неизвестная совместимость НЕ считается совпадением.
   if (b && (!String(item.marks || "").trim() || !hasValue(item.marks, b))) return false;
+  if (b && m && !brandModelPairAllowed(item, b, m)) return false;
   if (m && (!String(item.models || "").trim() || !modelMatches(item, m))) return false;
   if (e && (!String(item.engine || "").trim() || !hasValue(item.engine, e))) return false;
 
@@ -2336,6 +2337,19 @@ async function searchCar() {
   if(!b){toast("⚠️ Выберите марку автомобиля");return;}
   if(!m){toast("⚠️ Выберите модель автомобиля");return;}
 
+  // Переходим к результатам сразу после нажатия кнопки.
+  // Поиск и догрузка прайсов продолжаются уже после прокрутки.
+  // Сразу начинаем плавную прокрутку к результатам по нажатию
+  // кнопки — до любых await/загрузок каталога.
+  const resultsSection = document.querySelector(".results-section");
+  if (resultsSection) {
+    const top = resultsSection.getBoundingClientRect().top + window.scrollY - 70;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: "smooth"
+    });
+  }
+
   const loading = window.startAppLoading?.("Подбираем детали…");
 
   // Даём браузеру отрисовать уже показанный loader до тяжёлых операций
@@ -2347,15 +2361,6 @@ async function searchCar() {
       loading?.setText("Проверяем каталог…");
       await window.fullCatalogReady;
     }
-    if(window.ensureCrossDatabase) {
-      loading?.setText("Загружаем кроссы…");
-      await window.ensureCrossDatabase();
-    }
-    if(window.ensureOrderCatalog) {
-      loading?.setText("Загружаем товары под заказ…");
-      await window.ensureOrderCatalog();
-    }
-
     const matched=catalog.filter(item =>
       vehicleFitmentMatches(item, {
         brand: b,
@@ -2370,11 +2375,23 @@ async function searchCar() {
 
     const stockList=matched.slice();
 
-    // Показываем складские позиции сразу, не заставляя покупателя ждать
-    // загрузки всего прайса и кроссов.
+    // Сначала показываем реальные складские позиции.
+    // Большой прайс под заказ (~300k строк) и база кроссов грузятся
+    // только после того, как пользователь уже увидел результат склада.
     const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
     const liveTitle="Подбор: "+titleParts.join(" · ");
     render(stockList, liveTitle, true);
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+    if(window.ensureCrossDatabase) {
+      loading?.setText("Загружаем кроссы…");
+      await window.ensureCrossDatabase();
+    }
+    if(window.ensureOrderCatalog) {
+      loading?.setText("Догружаем товары под заказ…");
+      await window.ensureOrderCatalog();
+    }
+
     loading?.setText("Ищем дополнительные варианты…");
     await new Promise(resolve => setTimeout(resolve, 0));
 
@@ -2392,7 +2409,46 @@ async function searchCar() {
     // 1) через кроссы OEM/артикулов найденных деталей;
     // 2) напрямую по названию товара, если в нём явно указан бренд/модель.
     const orderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
-    const ownStockArticles = window.ownStockArticles || new Set();
+
+    // Авторитетный набор ВСЕХ артикулов, которые реально есть на складе.
+    // Проверяем его непосредственно перед добавлением заказной позиции,
+    // поэтому кроссы не смогут повторно протащить складской товар.
+    const stockCatalogArticles = new Set(
+      (Array.isArray(catalog) ? catalog : [])
+        .filter(item => item && !item._order && !item._unavailable && qtyValue(item.quantity) > 0)
+        .map(item => compact(item.catalog_number || ""))
+        .filter(Boolean)
+    );
+
+    // Абсолютный приоритет складского каталога:
+    // любой AMParts-артикул с quantity > 0 считается складским,
+    // даже если отдельный индекс/кросс/старый кэш пытается вернуть его
+    // как заказной.
+    const runtimeOwnStockArticles = new Set(
+      (Array.isArray(catalog) ? catalog : [])
+        .filter(item =>
+          item &&
+          qtyValue(item.quantity) > 0 &&
+          isOwnManufacturer(item.manufacturer_parts || "")
+        )
+        .map(item => compact(item.catalog_number || ""))
+        .filter(Boolean)
+    );
+
+    const ownStockArticles = new Set([
+      ...(window.ownStockArticles || []),
+      ...runtimeOwnStockArticles
+    ]);
+
+    // Удаляем из заказного каталога любые наши AMParts, которые реально
+    // есть на складе прямо сейчас.
+    if (Array.isArray(window.ampartsUnavailableCatalog)) {
+      window.ampartsUnavailableCatalog =
+        window.ampartsUnavailableCatalog.filter(item =>
+          !runtimeOwnStockArticles.has(compact(item?.catalog_number || ""))
+        );
+    }
+
     const selectedBrandText = String($("#brand")?.value || b).trim();
     const selectedModelText = String(m || "").trim();
     const orderMatchesVehicleName = item => {
@@ -2437,9 +2493,50 @@ async function searchCar() {
 
     const addOrderItem = (row, contextItem = null, contextOem = "") => {
       const article=compact(row?.article || row?.catalog_number);
+
+      // Кросс сам по себе НЕ доказывает совместимость.
+      // Если для найденного артикула уже есть собственная строка каталога
+      // с fitment-данными, проверяем именно её по выбранному автомобилю.
+      // Это не даёт, например, детали 2022-2024 попасть в подбор 2014
+      // только потому, что её OEM совпал с деталью от более старой машины.
+      if (article) {
+        const ownCatalogRows = (Array.isArray(catalog) ? catalog : []).filter(item =>
+          compact(item?.catalog_number || "") === article &&
+          !item?._order &&
+          !item?._unavailable
+        );
+
+        const structuredRows = ownCatalogRows.filter(item =>
+          String(item?.marks || "").trim() ||
+          String(item?.models || "").trim() ||
+          String(item?.engine || "").trim()
+        );
+
+        if (structuredRows.length) {
+          const fitsSelectedVehicle = structuredRows.some(item =>
+            vehicleFitmentMatches(item, {
+              brand: selectedBrandText,
+              model: selectedModelText,
+              engine: selectedEngine,
+              year: selectedYear,
+              volume: selectedVolume,
+              fuel: selectedFuel,
+              body: selectedBody
+            })
+          );
+
+          if (!fitsSelectedVehicle) return;
+        }
+      }
       if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
 
-      if(ownStockArticles.has(article)) return;
+      // Если артикул уже есть на складе — не создаём ни заказную,
+      // ни "нет в наличии" карточку с тем же артикулом.
+      if (
+        stockCatalogArticles.has(article) ||
+        ownStockArticles.has(article) ||
+        runtimeOwnStockArticles.has(article)
+      ) return;
 
       const ownByManufacturer =
         typeof window.isOwnManufacturer === "function"
