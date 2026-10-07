@@ -1105,6 +1105,17 @@ async function searchCar() {
     // 1) через кроссы OEM/артикулов найденных деталей;
     // 2) напрямую по названию товара, если в нём явно указан бренд/модель.
     const orderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
+
+    // Авторитетный набор ВСЕХ артикулов, которые реально есть на складе.
+    // Проверяем его непосредственно перед добавлением заказной позиции,
+    // поэтому кроссы не смогут повторно протащить складской товар.
+    const stockCatalogArticles = new Set(
+      (Array.isArray(catalog) ? catalog : [])
+        .filter(item => item && !item._order && !item._unavailable && qtyValue(item.quantity) > 0)
+        .map(item => compact(item.catalog_number || ""))
+        .filter(Boolean)
+    );
+
     const ownStockArticles = window.ownStockArticles || new Set();
     const selectedBrandText = String($("#brand")?.value || b).trim();
     const selectedModelText = String(m || "").trim();
@@ -1152,7 +1163,9 @@ async function searchCar() {
       const article=compact(row?.article || row?.catalog_number);
       if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
 
-      if(ownStockArticles.has(article)) return;
+      // Если артикул уже есть на складе — не создаём ни заказную,
+      // ни "нет в наличии" карточку с тем же артикулом.
+      if(stockCatalogArticles.has(article) || ownStockArticles.has(article)) return;
 
       const ownByManufacturer =
         typeof window.isOwnManufacturer === "function"
