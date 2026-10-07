@@ -44,7 +44,7 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
   position:fixed;
   top:84px;
   right:max(18px,calc((100% - 1280px)/2));
-  z-index:120;
+  z-index:99999;
   display:flex;
   align-items:center;
   gap:9px;
