@@ -565,9 +565,55 @@ function modelMatches(item, query) {
   });
 }
 
+function vehicleFitmentMatches(item, {
+  brand = "",
+  model = "",
+  engine = "",
+  year = "",
+  volume = "",
+  fuel = "",
+  body = ""
+} = {}) {
+  if (!item) return false;
+
+  const b = norm(brand);
+  const m = String(model || "").trim();
+  const e = String(engine || "").trim();
+
+  if (b && String(item.marks || "").trim() && !hasValue(item.marks, b)) return false;
+  if (m && String(item.models || "").trim() && !modelMatches(item, m)) return false;
+  if (e && String(item.engine || "").trim() && !hasValue(item.engine, e)) return false;
+
+  if (year) {
+    const text = textOf(item);
+    const ranges = extractYears(item);
+    if (text && ranges.length && !yearMatches(item, year)) return false;
+  }
+
+  if (volume && String(item.engine || "").trim() && !volumeMatches(item, volume)) return false;
+
+  if (fuel) {
+    const detected = fuelType(item);
+    if (detected && detected !== fuel) return false;
+  }
+
+  if (body) {
+    const detected = bodyType(item);
+    if (detected && detected !== body) return false;
+  }
+
+  return true;
+}
+
+window.vehicleFitmentMatches = vehicleFitmentMatches;
+
 function catalogForCar(brand="",model="",engine="") {
   const b=norm(brand), m=norm(model), e=norm(engine);
-  return catalog.filter(item=>hasValue(item.marks,b)&&modelMatches(item,m)&&hasValue(item.engine,e));
+  return catalog.filter(item=>vehicleFitmentMatches(item, {
+    brand: b,
+    model: m,
+    engine: e
+  }));
 }
 
 function currentCarBase() {
@@ -1075,16 +1121,17 @@ async function searchCar() {
       await window.ensureOrderCatalog();
     }
 
-    const matched=catalog.filter(item=>{
-      if(!hasValue(item.marks,b)) return false;
-      if(!modelMatches(item,m)) return false;
-      if(selectedEngine&&!hasValue(item.engine,selectedEngine)) return false;
-      if(selectedYear&&!yearMatches(item,selectedYear)) return false;
-      if(selectedVolume&&!volumeMatches(item,selectedVolume)) return false;
-      if(selectedFuel&&fuelType(item)!==selectedFuel) return false;
-      if(selectedBody&&bodyType(item)!==selectedBody) return false;
-      return true;
-    });
+    const matched=catalog.filter(item =>
+      vehicleFitmentMatches(item, {
+        brand: b,
+        model: m,
+        engine: selectedEngine,
+        year: selectedYear,
+        volume: selectedVolume,
+        fuel: selectedFuel,
+        body: selectedBody
+      })
+    );
 
     const stockList=matched.slice();
 
@@ -1128,12 +1175,27 @@ async function searchCar() {
       const modelAlias = norm(selectedModelText).replace(/\([^)]*\)/g, " ").trim();
       if(!modelAlias) return false;
 
-      // Для Rogue, Qashqai и подобных моделей проверяем модель целиком.
-      // Не используем одиночные цифры/коды поколения как самостоятельный матч.
       const modelWords = modelAlias.split(/\s+/).filter(x => x.length >= 3);
-      return modelWords.length
+      const hasModel = modelWords.length
         ? modelWords.every(word => text.includes(word))
         : text.includes(modelAlias);
+      if(!hasModel) return false;
+
+      return vehicleFitmentMatches({
+        marks: selectedBrandText,
+        models: selectedModelText,
+        engine: item?.engine || "",
+        name: item?.name || "",
+        description: item?.description || ""
+      }, {
+        brand: selectedBrandText,
+        model: selectedModelText,
+        engine: selectedEngine,
+        year: selectedYear,
+        volume: selectedVolume,
+        fuel: selectedFuel,
+        body: selectedBody
+      });
     };
 
     const addOrderItem = (row, contextItem = null, contextOem = "") => {
