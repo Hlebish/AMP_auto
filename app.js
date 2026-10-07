@@ -546,23 +546,47 @@ function modelMatches(item, query) {
 
   return splitValues(item.models).some(value => {
     const n = canonicalModel(value);
-
-    if (n === q || n.includes(q) || q.includes(n)) return true;
-
     const code = modelCode(value);
-    if (qCode && code && qCode === code) {
-      const family = modelFamily(value);
-      if (
-        family === qFamily ||
-        family.startsWith(qFamily + " ") ||
-        qFamily.startsWith(family + " ")
-      ) {
-        return true;
+
+    // Если пользователь выбрал конкретное поколение/кузовной код
+    // (например X4 (F26)), другой код (например X4 (G02)) не подходит.
+    if (qCode) {
+      if (code && code !== qCode) return false;
+
+      // Если у позиции код не указан, разрешаем её только как fallback:
+      // старые прайсы часто не содержат поколение явно.
+      if (!code) {
+        return n === q || n.includes(q) || q.includes(n);
       }
+
+      const family = modelFamily(value);
+      return (
+        code === qCode &&
+        (
+          family === qFamily ||
+          family.startsWith(qFamily + " ") ||
+          qFamily.startsWith(family + " ")
+        )
+      );
     }
 
-    return false;
+    // Если поколение не выбрано, работаем по семейству модели.
+    return n === q || n.includes(q) || q.includes(n);
   });
+}
+
+function isAutomotiveCatalogItem(item) {
+  const text = norm([
+    item?.name,
+    item?.description,
+    item?.catalog_number,
+    item?.manufacturer_parts
+  ].filter(Boolean).join(" "));
+
+  // CAMLOCK — отдельная товарная категория, не автомобильные запчасти.
+  if (/\bcamlock\b/i.test(text) || /\bcam ?lock\b/i.test(text)) return false;
+
+  return true;
 }
 
 function vehicleFitmentMatches(item, {
@@ -574,7 +598,7 @@ function vehicleFitmentMatches(item, {
   fuel = "",
   body = ""
 } = {}) {
-  if (!item) return false;
+  if (!item || !isAutomotiveCatalogItem(item)) return false;
 
   const b = norm(brand);
   const m = String(model || "").trim();
