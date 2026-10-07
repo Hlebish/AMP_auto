@@ -1041,16 +1041,6 @@ async function searchCar() {
     const ownStockArticles = window.ownStockArticles || new Set();
     const selectedBrandText = String($("#brand")?.value || b).trim();
     const selectedModelText = String(m || "").trim();
-    const selectedModelTokens = [...new Set(
-      [
-        selectedModelText,
-        modelFamily(selectedModelText),
-        selectedModelText.replace(/\\([^)]*\\)/g, " ")
-      ]
-        .flatMap(v => norm(v).split(/\\s+/))
-        .filter(v => v.length >= 3)
-    )];
-
     const orderMatchesVehicleName = item => {
       const text = norm([
         item?.name,
@@ -1063,12 +1053,12 @@ async function searchCar() {
       const hasBrand = brandAliases.some(x => text.includes(norm(x)));
       if(!hasBrand) return false;
 
-      const modelAlias = norm(selectedModelText).replace(/\\([^)]*\\)/g, " ").trim();
+      const modelAlias = norm(selectedModelText).replace(/\([^)]*\)/g, " ").trim();
       if(!modelAlias) return false;
 
       // Для Rogue, Qashqai и подобных моделей проверяем модель целиком.
       // Не используем одиночные цифры/коды поколения как самостоятельный матч.
-      const modelWords = modelAlias.split(/\\s+/).filter(x => x.length >= 3);
+      const modelWords = modelAlias.split(/\s+/).filter(x => x.length >= 3);
       return modelWords.length
         ? modelWords.every(word => text.includes(word))
         : text.includes(modelAlias);
