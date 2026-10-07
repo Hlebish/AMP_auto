@@ -385,19 +385,29 @@ function textOf(item) {
 function extractYears(item) {
   const text = textOf(item);
   const ranges = [];
+
+  // Full-year ranges: 2012-, 2012-2017, 2012–2017.
   const rangeRe = /\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})?/g;
   let m;
   while ((m = rangeRe.exec(text))) {
     const from = Number(m[1]);
-    // "2012-" means the fitment is open-ended, so keep all years
-    // after the start year available in the selector as well.
     const to = m[2] ? Number(m[2]) : 2035;
     ranges.push({from, to});
   }
-  if (ranges.length) return ranges;
-  return [...text.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>({from:Number(x[1]),to:Number(x[1])}));
-}
 
+  // Catalogs also commonly use MM.YY notation, e.g. "06.17-".
+  const shortRangeRe = /\b(0?[1-9]|1[0-2])\.(\d{2})\s*[-–—]\s*(?:(0?[1-9]|1[0-2])\.(\d{2}))?/g;
+  while ((m = shortRangeRe.exec(text))) {
+    const from = 2000 + Number(m[2]);
+    const to = m[4] ? 2000 + Number(m[4]) : 2035;
+    ranges.push({from, to});
+  }
+
+  if (ranges.length) return ranges;
+
+  return [...text.matchAll(/\b((?:19|20)\d{2})\b/g)]
+    .map(x => ({from:Number(x[1]), to:Number(x[1])}));
+}
 function yearMatches(item,wanted) {
   const y=Number(String(wanted||"").replace(/\D/g,""));
   if (!y) return true;
