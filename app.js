@@ -1223,6 +1223,44 @@ async function searchCar() {
   }
 }
 
+async function searchExactArticle() {
+  const input = $("#articleSearchInput");
+  const raw = String(input?.value || "").trim();
+  if (!raw) {
+    toast("⚠️ Введите артикул");
+    input?.focus();
+    return;
+  }
+
+  const loading = window.startAppLoading?.("Ищем артикул…");
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+  try {
+    if (window.fullCatalogReady) await window.fullCatalogReady;
+    if (window.ensureOrderCatalog) await window.ensureOrderCatalog();
+
+    const key = compact(raw);
+    const sources = [
+      ...(Array.isArray(catalog) ? catalog : []),
+      ...(Array.isArray(window.ampartsUnavailableCatalog) ? window.ampartsUnavailableCatalog : []),
+      ...(Array.isArray(window.orderCatalog) ? window.orderCatalog : [])
+    ];
+
+    const found = sources.filter(item => compact(item?.catalog_number || "") === key);
+
+    if (!found.length) {
+      render([], "Артикул: " + raw, true);
+      toast("❌ Артикул не найден");
+      return;
+    }
+
+    render(found, "Артикул: " + raw, true);
+    setTimeout(() => document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth", block:"start"}), 50);
+  } finally {
+    loading?.stop();
+  }
+}
+
 /* =========================
    УВЕДОМЛЕНИЯ
 ========================= */
@@ -1287,7 +1325,7 @@ function setMode(next) {
    EVENTS
 ========================= */
 
-$("#carBtn").onclick=searchCar;
+$("#carBtn").onclick=searchCar;\n$("#articleSearchBtn").onclick=searchExactArticle;\n$("#articleSearchInput").addEventListener("keydown", event => {\n  if (event.key === "Enter") searchExactArticle();\n});
 $("#brand").onchange=()=>{
   populateModels(true);
 };
