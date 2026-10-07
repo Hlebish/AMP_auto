@@ -885,8 +885,12 @@ function render(
   // Используем ВЕСЬ складской каталог, а не только текущий результат.
   // Иначе товар может попасть в "ПОД ЗАКАЗ" через кросс/прайс,
   // даже если его складская карточка не попала в конкретную ветку поиска.
+  // Заказной вариант скрываем только если тот же артикул
+  // реально есть в текущем подборе автомобиля со склада.
+  // Нельзя использовать весь каталог: один и тот же артикул может
+  // быть складским для другой машины и заказным для выбранной.
   const stockArticleKeys = new Set(
-    (Array.isArray(catalog) ? catalog : sourceList)
+    sourceList
       .filter(item => item && !item._order && !item._unavailable && qtyValue(item.quantity) > 0)
       .map(item => compact(item.catalog_number || ""))
       .filter(Boolean)
@@ -1161,8 +1165,10 @@ async function searchCar() {
     // Авторитетный набор ВСЕХ артикулов, которые реально есть на складе.
     // Проверяем его непосредственно перед добавлением заказной позиции,
     // поэтому кроссы не смогут повторно протащить складской товар.
+    // Приоритет склада действует только в рамках текущего автомобиля.
+    // Стоковая позиция другой машины не должна скрывать заказную.
     const stockCatalogArticles = new Set(
-      (Array.isArray(catalog) ? catalog : [])
+      (Array.isArray(stockList) ? stockList : [])
         .filter(item => item && !item._order && !item._unavailable && qtyValue(item.quantity) > 0)
         .map(item => compact(item.catalog_number || ""))
         .filter(Boolean)
@@ -1172,8 +1178,10 @@ async function searchCar() {
     // любой AMParts-артикул с quantity > 0 считается складским,
     // даже если отдельный индекс/кросс/старый кэш пытается вернуть его
     // как заказной.
+    // И здесь тоже учитываем только AMParts-позиции,
+    // которые реально подходят выбранному автомобилю.
     const runtimeOwnStockArticles = new Set(
-      (Array.isArray(catalog) ? catalog : [])
+      (Array.isArray(stockList) ? stockList : [])
         .filter(item =>
           item &&
           qtyValue(item.quantity) > 0 &&
@@ -1183,10 +1191,7 @@ async function searchCar() {
         .filter(Boolean)
     );
 
-    const ownStockArticles = new Set([
-      ...(window.ownStockArticles || []),
-      ...runtimeOwnStockArticles
-    ]);
+    const ownStockArticles = new Set(runtimeOwnStockArticles);
 
     // Удаляем из заказного каталога любые наши AMParts, которые реально
     // есть на складе прямо сейчас.
@@ -1248,33 +1253,17 @@ async function searchCar() {
       // Это не даёт, например, детали 2022-2024 попасть в подбор 2014
       // только потому, что её OEM совпал с деталью от более старой машины.
       if (article) {
-        const ownCatalogRows = (Array.isArray(catalog) ? catalog : []).filter(item =>
-          compact(item?.catalog_number || "") === article &&
-          !item?._order &&
-          !item?._unavailable
-        );
+        // Проверяем только склад этого текущего подбора.
+      // Артикул, который есть на складе для другой машины, не должен
+      // блокировать его заказной вариант здесь.
+      const selectedStockRows = (Array.isArray(stockList) ? stockList : []).filter(item =>
+        compact(item?.catalog_number || "") === article &&
+        !item?._order &&
+        !item?._unavailable &&
+        qtyValue(item?.quantity) > 0
+      );
 
-        const structuredRows = ownCatalogRows.filter(item =>
-          String(item?.marks || "").trim() ||
-          String(item?.models || "").trim() ||
-          String(item?.engine || "").trim()
-        );
-
-        if (structuredRows.length) {
-          const fitsSelectedVehicle = structuredRows.some(item =>
-            vehicleFitmentMatches(item, {
-              brand: selectedBrandText,
-              model: selectedModelText,
-              engine: selectedEngine,
-              year: selectedYear,
-              volume: selectedVolume,
-              fuel: selectedFuel,
-              body: selectedBody
-            })
-          );
-
-          if (!fitsSelectedVehicle) return;
-        }
+      if (selectedStockRows.length) return;
       }
       if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
 
