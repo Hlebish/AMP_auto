@@ -1547,13 +1547,9 @@ function modelFamily(value) {
     .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
     .replace(/\b(i{1,3}|iv|v)\b/g, " ");
 
-  const tokens = s.split(/\s+/).filter(Boolean);
-  if (tokens.length > 1) {
-    s = tokens
-      .filter((t, i) => !(i > 0 && /^\d{1,2}$/.test(t)))
-      .join(" ");
-  }
-
+  // Цифры являются частью названия модели и НЕ должны удаляться:
+  // CX 5, Mazda 3, Series 3 и т.п. — это разные модели/семейства.
+  // Раньше фильтр ниже превращал "CX 5 KE" в "CX KE".
   s = s
     .replace(/\b(sedan|saloon|wagon|touring|variant|estate|combi|hatchback|hatch|coupe|cabrio|convertible|van|mpv|pickup|cab|универсал|седан|купе|кабриолет|фургон|минивен|пикап|хетчбек|хэтчбек)\b/g, " ")
     .replace(/\s+/g, " ")
@@ -1567,13 +1563,8 @@ function canonicalModel(value) {
     .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
     .replace(/\b(i{1,3}|iv|v)\b/g, " ");
 
-  const tokens = s.split(/\s+/).filter(Boolean);
-  if (tokens.length > 1) {
-    s = tokens
-      .filter((t, i) => !(i > 0 && /^\d{1,2}$/.test(t)))
-      .join(" ");
-  }
-
+  // Не удаляем отдельные числовые токены: цифра может быть частью
+  // реального названия модели (например, "CX 5").
   return s
     .replace(/\s+/g, " ")
     .trim();
@@ -1596,8 +1587,11 @@ function modelTemplateKey(value) {
 }
 
 function prettyModelFamily(value) {
-  const family = modelFamily(value);
+  let family = modelFamily(value);
   if (!family) return "";
+
+  // В прайсах Mazda встречается "CX 5", но пользователю привычнее "CX-5".
+  family = family.replace(/\bCX\s+(\d{1,2})\b/gi, "CX-$1");
   return family.split(/\s+/).filter(Boolean).map(token => {
     if (/^[a-z]{1,3}-[a-z0-9]+$/i.test(token)) {
       const [head, ...rest] = token.split("-");
