@@ -286,6 +286,22 @@
     const brandIndex = {};
     for (const key of Object.keys(brandTerms)) brandIndex[key] = [];
 
+    // Один проход по прайсу вместо 24+ * 300k проверок.
+    // Ищем термины через нормализованный текст, но разбираем список
+    // терминов один раз и не пересчитываем norm() внутри вложенных циклов.
+    const normalizedPartTerms = Object.fromEntries(
+      Object.entries(partTerms).map(([key, terms]) => [
+        key,
+        terms.map(term => norm(term)).filter(Boolean)
+      ])
+    );
+    const normalizedBrandTerms = Object.fromEntries(
+      Object.entries(brandTerms).map(([key, terms]) => [
+        key,
+        terms.map(term => norm(term)).filter(Boolean)
+      ])
+    );
+
     for (const item of orderCatalog) {
       const text = norm([
         item.name,
@@ -294,12 +310,12 @@
       ].filter(Boolean).join(" "));
       if (!text) continue;
 
-      for (const [key, terms] of Object.entries(partTerms)) {
-        if (terms.some(term => text.includes(norm(term)))) index[key].push(item);
+      for (const [key, terms] of Object.entries(normalizedPartTerms)) {
+        if (terms.some(term => text.includes(term))) index[key].push(item);
       }
 
-      for (const [key, terms] of Object.entries(brandTerms)) {
-        if (terms.some(term => text.includes(norm(term)))) brandIndex[key].push(item);
+      for (const [key, terms] of Object.entries(normalizedBrandTerms)) {
+        if (terms.some(term => text.includes(term))) brandIndex[key].push(item);
       }
     }
 
