@@ -147,6 +147,72 @@
       "Обновить и дополнить";
   }
 
+  async function firebaseApp() {
+    if (!window.firebase) throw new Error("Firebase SDK не загружен");
+    const cfgRes = await fetch("/__/firebase/init.json", { cache:"no-store" });
+    if (!cfgRes.ok) throw new Error("Не найден Firebase Hosting init.json");
+    const config = await cfgRes.json();
+    if (!firebase.apps.length) firebase.initializeApp(config);
+    if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+    return firebase.app();
+  }
+
+  async function publishSelected() {
+    const input = document.querySelector("#excelImportInput");
+    const mode = document.querySelector("#excelImportMode")?.value || "update";
+    const file = input?.files?.[0];
+    if (!file) {
+      window.toast?.("Выбери Excel-файл");
+      return;
+    }
+
+    const loading = window.startAppLoading?.("Готовим общий прайс…");
+    try {
+      const info = await readFile(file);
+      if (mode === "replace" && !confirm(
+        "Опубликовать полную замену остатков для ВСЕХ пользователей?\n\n" +
+        "Позиции, которых нет в файле, будут иметь остаток 0."
+      )) return;
+
+      loading?.setText("Собираем общий каталог…");
+      const existing = await window.getImportedCatalogState?.();
+      let rows = info.rows;
+      if (existing?.rows?.length && mode !== "replace") {
+        const merged = window.mergeImportedCatalogRows(existing.rows, info.rows);
+        rows = merged;
+      }
+
+      const app = await firebaseApp();
+      const payload = {
+        mode,
+        rows,
+        filename: file.name,
+        importedAt: new Date().toISOString()
+      };
+
+      loading?.setText("Публикуем изменения…");
+      await app.storage().ref("catalog/imports/current.json")
+        .putString(JSON.stringify(payload), "raw", {
+          contentType: "application/json",
+          cacheControl: "no-cache, max-age=0"
+        });
+
+      if (window.applyImportedCatalog) {
+        await window.applyImportedCatalog(info.rows, mode, {
+          filename:file.name,
+          importedAt:payload.importedAt
+        });
+      }
+
+      window.toast?.("🌍 Готово — общий прайс опубликован для всех пользователей");
+    } catch (e) {
+      console.error("AMP Auto shared Excel publish:", e);
+      window.toast?.("❌ " + (e.message || "Не удалось опубликовать"));
+    } finally {
+      loading?.stop();
+    }
+  }
+
   async function importSelected() {
     const input = document.querySelector("#excelImportInput");
     const mode = document.querySelector("#excelImportMode")?.value || "update";
@@ -195,6 +261,7 @@
   function init() {
     const input = document.querySelector("#excelImportInput");
     const button = document.querySelector("#excelImportBtn");
+    const publishButton = document.querySelector("#excelPublishBtn");
     const mode = document.querySelector("#excelImportMode");
     const fileName = document.querySelector("#importFileName");
     if (!input || !button) return;
@@ -204,6 +271,7 @@
     });
 
     button.addEventListener("click", importSelected);
+    publishButton?.addEventListener("click", publishSelected);
     mode?.addEventListener("change", () => {
       if (input.files?.[0]) readFile(input.files[0]).then(info => renderPreview(info, mode.value)).catch(() => {});
     });
