@@ -536,12 +536,18 @@
     const current = Array.isArray(catalog) ? catalog : [];
     const merged = mergeImportedRows(current, incoming, mode);
 
+    const previous = await getImportedState();
+    let persistedRows = incoming;
+    if (previous && Array.isArray(previous.rows) && mode !== "replace") {
+      persistedRows = mergeImportedRows(previous.rows, incoming, "update").rows;
+    }
+
     await idbPut(IMPORT_STORE, {
       key: "custom",
       version: Date.now(),
       mode,
-      rows: incoming,
-      filename: meta.filename || "",
+      rows: persistedRows,
+      filename: meta.filename || previous?.filename || "",
       importedAt: meta.importedAt || new Date().toISOString()
     });
 
