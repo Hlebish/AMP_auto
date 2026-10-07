@@ -192,6 +192,7 @@ window.crossReady = Promise.resolve(false);
 
 const aliases = {
   bmw: ["bmw", "бмв"],
+  mini: ["mini", "мини"],
   audi: ["audi", "ауди", "ауді"],
   mercedes: ["mercedes", "мерседес", "mb"],
   volkswagen: ["volkswagen", "фольксваген", "vw"],
