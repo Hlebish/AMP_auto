@@ -170,3 +170,14 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
     min-width: 96px;
   }
 }
+/* Desktop vehicle picker: keep full filter labels visible */
+@media(min-width:1050px){
+  #carMode select{
+    min-width:0;
+    padding:12px 28px 12px 11px;
+    font-size:14px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:clip;
+  }
+}
