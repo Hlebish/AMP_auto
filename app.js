@@ -1325,7 +1325,11 @@ function setMode(next) {
    EVENTS
 ========================= */
 
-$("#carBtn").onclick=searchCar;\n$("#articleSearchBtn").onclick=searchExactArticle;\n$("#articleSearchInput").addEventListener("keydown", event => {\n  if (event.key === "Enter") searchExactArticle();\n});
+$("#carBtn").onclick=searchCar;
+$("#articleSearchBtn").onclick=searchExactArticle;
+$("#articleSearchInput").addEventListener("keydown", event => {
+  if (event.key === "Enter") searchExactArticle();
+});
 $("#brand").onchange=()=>{
   populateModels(true);
 };
