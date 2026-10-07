@@ -34,7 +34,7 @@
   };
 
   const brandAliases = {
-    bmw:["bmw","бмв"], audi:["audi","ауди","ауді"],
+    bmw:["bmw","бмв"], mini:["mini","мини"], audi:["audi","ауди","ауді"],
     mercedes:["mercedes","мерседес","mb","мерс"],
     volkswagen:["volkswagen","фольксваген","vw"],
     toyota:["toyota","тойота"], honda:["honda","хонда"],
@@ -49,7 +49,7 @@
   };
 
   const brandCodes = {
-    bmw:["bm"], audi:["au"], mercedes:["mb"], volkswagen:["vw"],
+    bmw:["bm"], mini:["mn"], audi:["au"], mercedes:["mb"], volkswagen:["vw"],
     toyota:["ty"], honda:["hd"], mazda:["mz"], ford:["fd"],
     nissan:["ns"], renault:["rn","re"], skoda:["sk"], hyundai:["hy"],
     kia:["ki"], mitsubishi:["mt","mits"], opel:["op"], peugeot:["pg"],
