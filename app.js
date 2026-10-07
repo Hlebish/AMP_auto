@@ -826,7 +826,7 @@ function render(
   }
 
   $("#results").innerHTML =
-    list
+    filteredList
       .slice(0, 300)
       .map(x => {
 
