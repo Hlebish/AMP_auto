@@ -798,19 +798,83 @@ function filterByPartType(list) {
    РЕЗУЛЬТАТЫ
 ========================= */
 
+function mergeStockDuplicates(list) {
+  const input = Array.isArray(list) ? list : [];
+  const groups = new Map();
+  const output = [];
+
+  const addUnique = (a, b) => {
+    const seen = new Set();
+    const result = [];
+    for (const value of [...a, ...b]) {
+      const parts = String(value ?? "")
+        .split(",")
+        .map(v => v.trim())
+        .filter(Boolean);
+      for (const part of parts) {
+        const key = compact(part);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        result.push(part);
+      }
+    }
+    return result;
+  };
+
+  for (const item of input) {
+    const isStock = item && !item._order && !item._unavailable;
+    const article = compact(item?.catalog_number || "");
+
+    if (!isStock || !article) {
+      output.push(item);
+      continue;
+    }
+
+    if (!groups.has(article)) {
+      const merged = { ...item };
+      groups.set(article, merged);
+      output.push(merged);
+      continue;
+    }
+
+    const merged = groups.get(article);
+
+    merged.original_number = addUnique(
+      [merged.original_number],
+      [item.original_number]
+    ).join(", ");
+
+    merged.marks = addUnique(
+      [merged.marks],
+      [item.marks]
+    ).join(", ");
+
+    merged.models = addUnique(
+      [merged.models],
+      [item.models]
+    ).join(", ");
+
+    if (!merged.name && item.name) merged.name = item.name;
+    if (!merged.description && item.description) merged.description = item.description;
+  }
+
+  return output;
+}
+
 function render(
   list,
   title = "Каталог склада",
   showAll = false
 ) {
 
-  lastRenderedList = Array.isArray(list) ? list.slice() : [];
+  const sourceList = mergeStockDuplicates(list);
+  lastRenderedList = sourceList.slice();
   const filteredList = filterByPartType(lastRenderedList);
   const displayList = showAll ? filteredList : filteredList.slice(0, 300);
   results = displayList.slice();
 
   const titleEl = $("#resultTitle");
-  const baseTitle = title + (!showAll && list.length > 300 ? " · первые 300" : "");
+  const baseTitle = title + (!showAll && sourceList.length > 300 ? " · первые 300" : "");
   if (titleEl) {
     titleEl.dataset.baseTitle = baseTitle;
     titleEl.textContent = activePartType
