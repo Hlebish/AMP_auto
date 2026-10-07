@@ -604,26 +604,27 @@ function vehicleFitmentMatches(item, {
   const m = String(model || "").trim();
   const e = String(engine || "").trim();
 
-  if (b && String(item.marks || "").trim() && !hasValue(item.marks, b)) return false;
-  if (m && String(item.models || "").trim() && !modelMatches(item, m)) return false;
-  if (e && String(item.engine || "").trim() && !hasValue(item.engine, e)) return false;
+  // Для подбора автомобиля неизвестная совместимость НЕ считается совпадением.
+  if (b && (!String(item.marks || "").trim() || !hasValue(item.marks, b))) return false;
+  if (m && (!String(item.models || "").trim() || !modelMatches(item, m))) return false;
+  if (e && (!String(item.engine || "").trim() || !hasValue(item.engine, e))) return false;
 
   if (year) {
     const text = textOf(item);
     const ranges = extractYears(item);
-    if (text && ranges.length && !yearMatches(item, year)) return false;
+    if (!text || !ranges.length || !yearMatches(item, year)) return false;
   }
 
-  if (volume && String(item.engine || "").trim() && !volumeMatches(item, volume)) return false;
+  if (volume && (!String(item.engine || "").trim() || !volumeMatches(item, volume))) return false;
 
   if (fuel) {
     const detected = fuelType(item);
-    if (detected && detected !== fuel) return false;
+    if (!detected || detected !== fuel) return false;
   }
 
   if (body) {
     const detected = bodyType(item);
-    if (detected && detected !== body) return false;
+    if (!detected || detected !== body) return false;
   }
 
   return true;
@@ -1205,21 +1206,23 @@ async function searchCar() {
         : text.includes(modelAlias);
       if(!hasModel) return false;
 
-      return vehicleFitmentMatches({
-        marks: selectedBrandText,
-        models: selectedModelText,
-        engine: item?.engine || "",
-        name: item?.name || "",
-        description: item?.description || ""
-      }, {
-        brand: selectedBrandText,
-        model: selectedModelText,
-        engine: selectedEngine,
-        year: selectedYear,
-        volume: selectedVolume,
-        fuel: selectedFuel,
-        body: selectedBody
-      });
+      if (item?.marks || item?.models || item?.engine) {
+        return vehicleFitmentMatches(item, {
+          brand: selectedBrandText,
+          model: selectedModelText,
+          engine: selectedEngine,
+          year: selectedYear,
+          volume: selectedVolume,
+          fuel: selectedFuel,
+          body: selectedBody
+        });
+      }
+
+      // Старые строки без структурированных fitment-полей допускаем
+      // только если название явно содержит код выбранного поколения.
+      const selectedCode = modelCode(selectedModelText);
+      if (!selectedCode) return false;
+      return compact(text).includes(compact(selectedCode));
     };
 
     const addOrderItem = (row, contextItem = null, contextOem = "") => {
