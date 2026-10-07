@@ -169,7 +169,7 @@
     }
   }
 
-  function installOrders(rows, silent = false) {
+  async function installOrders(rows, silent = false) {
     const allRows = Array.isArray(rows) ? rows : [];
     const stockArticles = new Set(
       catalog
@@ -302,20 +302,26 @@
       ])
     );
 
-    for (const item of orderCatalog) {
+    for (let i = 0; i < orderCatalog.length; i++) {
+      const item = orderCatalog[i];
       const text = norm([
         item.name,
         item.description,
         item.manufacturer_parts
       ].filter(Boolean).join(" "));
-      if (!text) continue;
+      if (text) {
+        for (const [key, terms] of Object.entries(normalizedPartTerms)) {
+          if (terms.some(term => text.includes(term))) index[key].push(item);
+        }
 
-      for (const [key, terms] of Object.entries(normalizedPartTerms)) {
-        if (terms.some(term => text.includes(term))) index[key].push(item);
+        for (const [key, terms] of Object.entries(normalizedBrandTerms)) {
+          if (terms.some(term => text.includes(term))) brandIndex[key].push(item);
+        }
       }
 
-      for (const [key, terms] of Object.entries(normalizedBrandTerms)) {
-        if (terms.some(term => text.includes(term))) brandIndex[key].push(item);
+      // Не блокируем главный поток на сотни тысяч строк.
+      if ((i + 1) % 1000 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
     }
 
@@ -524,7 +530,7 @@
         }
 
         loading?.setText("Индексируем товары под заказ…");
-        installOrders(rows, true);
+        await installOrders(rows, true);
         window.orderReady = Promise.resolve(true);
         return true;
       } catch (e) {
