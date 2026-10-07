@@ -1032,71 +1032,145 @@ async function searchCar() {
       }
     }
 
+    // ВАЖНО: подбор автомобиля не должен зависеть только от складских позиций.
+    // Часть деталей есть только во внешнем прайсе и не имеет своей складской
+    // строки. Поэтому ищем товары под заказ двумя путями:
+    // 1) через кроссы OEM/артикулов найденных деталей;
+    // 2) напрямую по названию товара, если в нём явно указан бренд/модель.
     const orderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
     const ownStockArticles = window.ownStockArticles || new Set();
+    const selectedBrandText = String($("#brand")?.value || b).trim();
+    const selectedModelText = String(m || "").trim();
+    const selectedModelTokens = [...new Set(
+      [
+        selectedModelText,
+        modelFamily(selectedModelText),
+        selectedModelText.replace(/\\([^)]*\\)/g, " ")
+      ]
+        .flatMap(v => norm(v).split(/\\s+/))
+        .filter(v => v.length >= 3)
+    )];
 
+    const orderMatchesVehicleName = item => {
+      const text = norm([
+        item?.name,
+        item?.description,
+        item?.manufacturer_parts
+      ].filter(Boolean).join(" "));
+      if(!text) return false;
+
+      const brandAliases = expandedToken(selectedBrandText);
+      const hasBrand = brandAliases.some(x => text.includes(norm(x)));
+      if(!hasBrand) return false;
+
+      const modelAlias = norm(selectedModelText).replace(/\\([^)]*\\)/g, " ").trim();
+      if(!modelAlias) return false;
+
+      // Для Rogue, Qashqai и подобных моделей проверяем модель целиком.
+      // Не используем одиночные цифры/коды поколения как самостоятельный матч.
+      const modelWords = modelAlias.split(/\\s+/).filter(x => x.length >= 3);
+      return modelWords.length
+        ? modelWords.every(word => text.includes(word))
+        : text.includes(modelAlias);
+    };
+
+    const addOrderItem = (row, contextItem = null, contextOem = "") => {
+      const article=compact(row?.article || row?.catalog_number);
+      if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
+
+      if(ownStockArticles.has(article)) return;
+
+      const ownByManufacturer =
+        typeof window.isOwnManufacturer === "function"
+          ? window.isOwnManufacturer(row?.brand || row?.manufacturer_parts || "")
+          : compact(row?.brand || row?.manufacturer_parts || "") === "amparts";
+
+      if(ownByManufacturer){
+        const item = typeof window.makeUnavailableOwnPart === "function"
+          ? window.makeUnavailableOwnPart(row, contextItem?.original_number || contextOem)
+          : {
+              _unavailable:true,
+              _order:false,
+              _amparts:true,
+              catalog_number:row.article,
+              manufacturer_parts:row.brand || "AMPARTS",
+              name:row.name || row.article,
+              original_number:row.oem || contextItem?.original_number || contextOem,
+              quantity:0,
+              price:row.price ?? ""
+            };
+
+        item._partType = contextItem ? detectPartType(contextItem) : detectPartType(item);
+        seenOwnUnavailable.add(article);
+        orderList.push(item);
+        return;
+      }
+
+      const existing=orderByArticle.get(article);
+      const item=existing
+        ? {
+            ...existing,
+            _order:true,
+            _order_brand:existing.manufacturer_parts||row.brand||"",
+            _order_oem:row.oem||contextItem?.original_number||"",
+            _order_for_article:contextItem?.catalog_number || ""
+          }
+        : {
+            _order:true,
+            _order_brand:row.brand||"",
+            _order_oem:row.oem||contextItem?.original_number||contextOem||"",
+            _order_for_article:contextItem?.catalog_number || "",
+            catalog_number:row.article||row.catalog_number,
+            manufacturer_parts:row.brand||row.manufacturer_parts||"",
+            name:row.name||row.article||row.catalog_number,
+            original_number:row.oem||"",
+            quantity:0,
+            price:row.price ?? ""
+          };
+
+      item._partType = contextItem ? detectPartType(contextItem) : detectPartType(item);
+      seenOrder.add(article);
+      orderList.push(item);
+    };
+
+    // 1. Кроссы от всех найденных складских деталей.
     for(const stockItem of matched){
       const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
       for(const oem of oems){
         const rows=window.crossData?.by_oem?.[oem]||[];
-        const ownRow = rows.find(row =>
-          typeof window.isOwnManufacturer === "function"
-            ? window.isOwnManufacturer(row.brand || "")
-            : compact(row.brand || "") === "amparts"
-        );
-        const firstOrderRow = rows.find(row =>
-          !(typeof window.isOwnManufacturer === "function"
-            ? window.isOwnManufacturer(row.brand || "")
-            : compact(row.brand || "") === "amparts")
-        );
-        const ownReferenceArticle =
-          compact(ownRow?.article || stockItem.catalog_number || "");
-
         for(const row of rows){
-          const article=compact(row.article);
-          if(!article||seenOrder.has(article)||seenOwnUnavailable.has(article)) continue;
+          addOrderItem(row, stockItem, oem);
+        }
+      }
+    }
 
-          // Наш артикул не может стать "ПОД ЗАКАЗ".
-          if(ownStockArticles.has(article)) continue;
+    // 2. Прямой поиск по названию прайса. Это закрывает важный случай:
+    // товар есть только под заказ и в его названии прямо указано Nissan Rogue.
+    if(Array.isArray(window.orderCatalog)){
+      for(const item of window.orderCatalog){
+        if(orderMatchesVehicleName(item)){
+          addOrderItem({
+            article:item.catalog_number,
+            brand:item.manufacturer_parts,
+            name:item.name,
+            price:item.price
+          }, null, "");
+        }
+      }
+    }
 
-          const ownByManufacturer =
-            typeof window.isOwnManufacturer === "function"
-              ? window.isOwnManufacturer(row.brand || "")
-              : compact(row.brand || "") === "amparts";
-
-          if(ownByManufacturer){
-            const item = typeof window.makeUnavailableOwnPart === "function"
-              ? window.makeUnavailableOwnPart(row, stockItem.original_number || oem)
-              : {
-                  _unavailable:true,
-                  _order:false,
-                  _amparts:true,
-                  catalog_number:row.article,
-                  manufacturer_parts:row.brand || "AMPARTS",
-                  name:row.article,
-                  original_number:row.oem || stockItem.original_number || oem,
-                  quantity:0,
-                  price:""
-                };
-
-            if (firstOrderRow) {
-              item._order_offer_article = firstOrderRow.article || "";
-              item._order_offer_brand = firstOrderRow.brand || "";
-            }
-
-            item._partType = detectPartType(stockItem);
-            seenOwnUnavailable.add(article);
-            orderList.push(item);
-            continue;
-          }
-
-          const existing=orderByArticle.get(article);
-          const item=existing
-            ? {...existing,_order:true,_order_brand:existing.manufacturer_parts||row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || ""}
-            : {_order:true,_order_brand:row.brand||"",_order_oem:row.oem||stockItem.original_number||"",_order_for_article:ownReferenceArticle || stockItem.catalog_number || "",catalog_number:row.article,manufacturer_parts:row.brand||"",name:row.article,original_number:row.oem||"",quantity:0,price:""};
-          item._partType = detectPartType(stockItem);
-          seenOrder.add(article);
-          orderList.push(item);
+    // 3. Наши AMParts без наличия, которые явно относятся к выбранной машине.
+    // Они должны быть видны как "НЕТ В НАЛИЧИИ", а не исчезать из подбора.
+    if(Array.isArray(window.ampartsUnavailableCatalog)){
+      for(const item of window.ampartsUnavailableCatalog){
+        if(orderMatchesVehicleName(item)){
+          addOrderItem({
+            article:item.catalog_number,
+            brand:item.manufacturer_parts || "AMPARTS",
+            name:item.name,
+            price:item.price,
+            oem:item.original_number
+          }, null, item.original_number || "");
         }
       }
     }
