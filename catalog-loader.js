@@ -683,43 +683,42 @@
     if (Array.isArray(window.orderCatalog) && window.orderCatalog.length) return true;
     if (orderLoadPromise) return orderLoadPromise;
 
-    const loading = window.startAppLoading?.("Готовим товары под заказ…");
-
     if (!activeOrderManifest) {
       try {
         activeOrderManifest = await getManifest("orders/manifest.json");
       } catch (e) {
-        loading?.stop();
         console.warn("AMP Auto order manifest:", e);
         return false;
       }
     }
 
     orderLoadPromise = (async () => {
+      let loading = null;
+
       try {
         const key = orderKey(activeOrderManifest);
         const cached = await idbGet(ORDER_STORE, key);
 
-        loading?.setText(
-          cached
-            ? "Готовим товары под заказ из кэша…"
-            : "Загружаем прайс под заказ…"
-        );
-
-        let rows = cached && Array.isArray(cached.rows)
-          ? cached.rows
-          : await downloadOrders(activeOrderManifest);
-
-        // Даём браузеру отрисовать интерфейс между большими порциями.
-        // Если прайс свежий — сохраняем его, но не блокируем UI.
-        if (!cached) {
-          loading?.setText("Сохраняем прайс под заказ…");
-          await idbPut(ORDER_STORE, {
-            key,
-            version: activeOrderManifest.version,
-            rows
-          });
+        // Если полный прайс уже лежит в IndexedDB, НИЧЕГО не скачиваем.
+        // Берём его локально и не показываем пользователю загрузчик 62/62.
+        if (cached && Array.isArray(cached.rows) && cached.rows.length) {
+          await installOrders(cached.rows, true);
+          window.orderReady = Promise.resolve(true);
+          return true;
         }
+
+        // Первый запуск или новая версия прайса — скачиваем один раз
+        // и после этого сохраняем весь прайс в локальную базу.
+        loading = window.startAppLoading?.("Загружаем прайс под заказ…");
+
+        const rows = await downloadOrders(activeOrderManifest);
+
+        loading?.setText("Сохраняем прайс в локальную базу…");
+        await idbPut(ORDER_STORE, {
+          key,
+          version: activeOrderManifest.version,
+          rows
+        });
 
         loading?.setText("Индексируем товары под заказ…");
         await installOrders(rows, true);
@@ -736,7 +735,6 @@
 
     return orderLoadPromise;
   }
-
   window.ensureOrderCatalog = ensureOrderCatalog;
 
   async function ensureCrossDatabase() {
