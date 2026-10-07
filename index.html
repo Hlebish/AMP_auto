@@ -47,6 +47,29 @@
   </div>
 </section>
 
+
+<section class="import-section search-box">
+  <div class="picker-title">📊 Импорт Excel</div>
+  <p class="picker-note">Загружай новые прайсы и таблицы остатков. Артикулы совпадут автоматически; заполненные поля обновятся, новые позиции добавятся.</p>
+  <div class="import-row">
+    <label class="file-picker">
+      <input id="excelImportInput" type="file" accept=".xlsx,.xls,.csv">
+      <span>Выбрать Excel</span>
+    </label>
+    <span id="importFileName" class="import-file-name">Файл не выбран</span>
+  </div>
+  <div class="import-controls">
+    <select id="excelImportMode" aria-label="Режим импорта">
+      <option value="update">Обновить и дополнить</option>
+      <option value="append">Только новые товары</option>
+      <option value="replace">Полностью заменить остатки</option>
+    </select>
+    <button id="excelImportBtn" class="primary" type="button">Импортировать</button>
+  </div>
+  <div id="importPreview" class="import-preview hidden"></div>
+  <div class="picker-note">Изменения сохраняются в кэше этого браузера и сразу участвуют в поиске. Полная общая синхронизация для всех пользователей подключается через Firebase.</div>
+</section>
+
 <section class="results-section">
   <div class="section-head"><div><span class="eyebrow">РЕЗУЛЬТАТЫ</span><h2 id="resultTitle">Каталог склада</h2></div><div class="result-tools"><select id="partTypeFilter" aria-label="Фильтр по типу детали"><option value="">Все детали</option><option value="капот">Капот</option><option value="крыло">Крыло</option><option value="бампер">Бампер</option><option value="дверь">Дверь</option><option value="фара">Фара</option><option value="фонарь">Фонарь</option><option value="решетка">Решётка</option><option value="зеркало">Зеркало</option><option value="стекло">Стекло</option><option value="подкрылок">Подкрылок</option><option value="усилитель">Усилитель</option><option value="накладка">Накладка</option><option value="облицовка">Облицовка</option><option value="замок">Замок</option><option value="ручка">Ручка</option><option value="молдинг">Молдинг</option><option value="спойлер">Спойлер</option><option value="крышка">Крышка</option><option value="защита">Защита</option><option value="поршень">Поршень</option><option value="колодка">Тормозная колодка</option><option value="диск">Тормозной диск</option><option value="фильтр">Фильтр</option><option value="свеча">Свеча</option><option value="пластик">Пластик</option></select><button id="clearPartTypeBtn" class="secondary" type="button" onclick="document.getElementById('partTypeFilter').value=''; document.getElementById('partTypeFilter').dispatchEvent(new Event('change'));">Сбросить фильтр</button><button id="clearBtn" class="secondary" type="button">Сбросить подбор</button></div></div>
   <div id="results" class="results"></div>
@@ -61,6 +84,7 @@
 <script src="normalize.js?v=20261007-2"></script>
 <script src="app.js?v=20261007-26"></script>
 <script src="search-fix.js?v=20261007-7"></script>
-  <script src="catalog-loader.js?v=20261007-8"></script>
+<script src="import-center.js?v=20261007-1"></script>
+  <script src="catalog-loader.js?v=20261007-9"></script>
 </body>
 </html>
