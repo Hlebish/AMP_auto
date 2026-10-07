@@ -127,3 +127,46 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 .result-tools select:focus{border-color:var(--accent)}
 @media(max-width:700px){.result-tools{width:100%}.result-tools select{flex:1;min-width:0}.result-tools .secondary{white-space:nowrap}}
 @media(max-width:560px){.section-head{align-items:stretch;flex-direction:column;gap:10px}.result-tools{display:grid;grid-template-columns:1fr auto}.result-tools select{width:100%}}
+
+
+/* Отдельный строгий поиск по артикулу */
+.article-search-box {
+  margin-top: 14px;
+}
+
+.article-search-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+#articleSearchInput {
+  flex: 1;
+  min-width: 0;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+
+#articleSearchInput:focus {
+  border-color: var(--accent);
+}
+
+#articleSearchBtn {
+  min-width: 110px;
+}
+
+@media (max-width: 640px) {
+  .article-search-row {
+    gap: 8px;
+  }
+
+  #articleSearchBtn {
+    min-width: 96px;
+  }
+}
