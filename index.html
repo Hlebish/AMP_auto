@@ -65,6 +65,7 @@
       <option value="replace">Полностью заменить остатки</option>
     </select>
     <button id="excelImportBtn" class="primary" type="button">Импортировать</button>
+    <button id="excelPublishBtn" class="secondary" type="button">Опубликовать для всех</button>
   </div>
   <div id="importPreview" class="import-preview hidden"></div>
   <div class="picker-note">Изменения сохраняются в кэше этого браузера и сразу участвуют в поиске. Полная общая синхронизация для всех пользователей подключается через Firebase.</div>
@@ -81,6 +82,9 @@
   <span id="loadingText">Загрузка сайта…</span>
 </div>
 <div id="toast" class="toast"></div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
 <script src="normalize.js?v=20261007-2"></script>
 <script src="app.js?v=20261007-26"></script>
 <script src="search-fix.js?v=20261007-7"></script>
