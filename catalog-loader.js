@@ -4,10 +4,11 @@
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
   const VERSION = "20261007-normalized-v13";
   const DB_NAME = "amp_auto_cache";
-  const DB_VERSION = 3;
+  const DB_VERSION = 4;
   const CATALOG_STORE = "catalog";
   const CROSS_STORE = "crosses";
   const ORDER_STORE = "orders";
+  const IMPORT_STORE = "imports";
 
   function openDB() {
     return new Promise((resolve, reject) => {
@@ -22,6 +23,9 @@
         }
         if (!db.objectStoreNames.contains(ORDER_STORE)) {
           db.createObjectStore(ORDER_STORE, { keyPath: "key" });
+        }
+        if (!db.objectStoreNames.contains(IMPORT_STORE)) {
+          db.createObjectStore(IMPORT_STORE, { keyPath: "key" });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -382,6 +386,7 @@
 
   function installCatalog(rows, silent = false) {
     catalog = rows;
+    window.currentCatalog = catalog;
 
     // Сразу фиксируем наши реальные AMParts-артикулы из склада.
     // Это нужно ещё до загрузки огромного прайса под заказ, чтобы кроссы
@@ -420,6 +425,137 @@
     if (!silent) render(catalog.slice(0, 100), "Каталог товаров");
   }
 
+  function importedKey(value) {
+    return typeof window.normalizePartNumber === "function"
+      ? window.normalizePartNumber(value)
+      : String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  }
+
+  function mergeImportedRows(baseRows, importedRows, mode = "update") {
+    const base = Array.isArray(baseRows) ? baseRows.map(x => ({...x})) : [];
+    const incoming = Array.isArray(importedRows) ? importedRows : [];
+    const byArticle = new Map();
+
+    for (let i = 0; i < base.length; i++) {
+      const k = importedKey(base[i].catalog_number);
+      if (k && !byArticle.has(k)) byArticle.set(k, []);
+      if (k) byArticle.get(k).push(i);
+    }
+
+    const seenIncoming = new Set();
+    let added = 0;
+    let updated = 0;
+
+    const fields = [
+      "manufacturer_parts","name","description","quantity","price",
+      "original_number","marks","models","engine","image"
+    ];
+
+    for (const raw of incoming) {
+      const article = String(raw?.catalog_number ?? "").trim();
+      const k = importedKey(article);
+      if (!k) continue;
+      seenIncoming.add(k);
+
+      const indexes = byArticle.get(k) || [];
+      if (indexes.length && mode !== "append") {
+        for (const idx of indexes) {
+          const target = base[idx];
+          for (const field of fields) {
+            const value = raw[field];
+            if (value !== "" && value !== null && value !== undefined) {
+              target[field] = value;
+            }
+          }
+          target.catalog_number = target.catalog_number || article;
+          target.search_key = importedKey(target.catalog_number);
+          target.original_search_key = importedKey(target.original_number || "");
+          updated++;
+        }
+      } else if (!indexes.length) {
+        const row = {
+          catalog_number: article,
+          search_key: k,
+          manufacturer_parts: raw.manufacturer_parts || "",
+          name: raw.name || "",
+          description: raw.description || "",
+          quantity: raw.quantity ?? "",
+          price: raw.price ?? "",
+          original_number: raw.original_number || "",
+          original_search_key: importedKey(raw.original_number || ""),
+          marks: raw.marks || "",
+          models: raw.models || "",
+          engine: raw.engine || "",
+          image: raw.image || "",
+          source: "import"
+        };
+        base.push(row);
+        byArticle.set(k, [base.length - 1]);
+        added++;
+      }
+    }
+
+    if (mode === "replace") {
+      for (const row of base) {
+        const k = importedKey(row.catalog_number);
+        if (!k || seenIncoming.has(k)) continue;
+        if (qtyValue(row.quantity) > 0) {
+          row.quantity = 0;
+          updated++;
+        }
+      }
+    }
+
+    return { rows: base, added, updated };
+  }
+
+  async function getImportedState() {
+    try {
+      return await idbGet(IMPORT_STORE, "custom");
+    } catch (e) {
+      console.warn("AMP Auto import cache:", e);
+      return null;
+    }
+  }
+
+  async function installImportedState(baseRows, silent = true) {
+    const state = await getImportedState();
+    if (!state || !Array.isArray(state.rows) || !state.rows.length) return baseRows;
+    const merged = mergeImportedRows(baseRows, state.rows, state.mode || "update");
+    if (merged.rows.length) {
+      installCatalog(merged.rows, silent);
+      return merged.rows;
+    }
+    return baseRows;
+  }
+
+  window.applyImportedCatalog = async function(rows, mode = "update", meta = {}) {
+    const incoming = Array.isArray(rows) ? rows : [];
+    if (!incoming.length) return { ok:false, error:"Excel не содержит товаров" };
+
+    const current = Array.isArray(catalog) ? catalog : [];
+    const merged = mergeImportedRows(current, incoming, mode);
+
+    await idbPut(IMPORT_STORE, {
+      key: "custom",
+      version: Date.now(),
+      mode,
+      rows: incoming,
+      filename: meta.filename || "",
+      importedAt: meta.importedAt || new Date().toISOString()
+    });
+
+    installCatalog(merged.rows, true);
+    window.currentCatalog = catalog;
+
+    return {
+      ok: true,
+      added: merged.added,
+      updated: merged.updated,
+      total: merged.rows.length
+    };
+  };
+
   function installCrosses(data) {
     window.crossData = data || { by_oem: {}, by_article: {} };
   }
@@ -434,6 +570,7 @@
     if (!cachedCatalog || !Array.isArray(cachedCatalog.rows)) return false;
 
     installCatalog(cachedCatalog.rows, true);
+    await installImportedState(catalog, true);
 
     // Прайс под заказ НЕ разворачиваем при старте: даже чтение 300k
     // объектов из IndexedDB заметно подвешивает интерфейс.
@@ -469,6 +606,7 @@
         const rows = await downloadCatalog(manifest);
         await idbPut(CATALOG_STORE, { key: cKey, version: manifest.version, rows });
         installCatalog(rows, true);
+        await installImportedState(catalog, true);
       })());
     }
 
