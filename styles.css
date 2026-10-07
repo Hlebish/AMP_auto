@@ -194,3 +194,116 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 
 /* Excel import center */
 .import-section{max-width:1280px;margin:0 auto 10px;padding:16px}.import-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.file-picker{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--soft);color:var(--accent2);border-radius:10px;padding:11px 15px;font-weight:850;cursor:pointer}.file-picker input{display:none}.import-file-name{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;max-width:60vw}.import-controls{display:flex;gap:10px;margin-top:10px}.import-controls select{min-width:260px;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:12px;color:var(--text)}.import-preview{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg);font-size:13px}.import-stats{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0;color:var(--muted)}.import-stats b{color:var(--text)}.import-samples{display:grid;gap:4px;margin:8px 0}.import-samples div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dark .import-preview{background:#11181d}@media(max-width:560px){.import-section{margin:0 12px 10px;padding:14px}.import-controls{flex-direction:column}.import-controls select{min-width:0;width:100%}.import-controls button{width:100%}.import-file-name{max-width:100%}}
+
+
+/* Visual hierarchy: vehicle selection is the main action */
+.article-search-box{
+  width:min(760px,100%);
+  padding:9px 12px;
+  margin-top:4px;
+  box-shadow:0 6px 20px rgba(24,33,43,.055);
+}
+.article-search-box .picker-title{
+  font-size:15px;
+  padding:2px 4px 5px;
+}
+.article-search-row{gap:8px}
+#articleSearchInput{
+  height:42px;
+  padding:0 13px;
+  border-width:1px;
+  box-shadow:none;
+  font-size:14px;
+}
+#articleSearchInput:focus{
+  border-width:2px;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent);
+}
+#articleSearchBtn{
+  min-width:88px;
+  padding:10px 14px;
+}
+.article-search-box .picker-note{
+  padding:6px 4px 0;
+  font-size:10px;
+}
+
+.vehicle-picker{
+  padding:20px;
+  border-width:2px;
+  box-shadow:0 14px 38px rgba(24,33,43,.11);
+}
+.vehicle-picker .picker-title{
+  font-size:22px;
+  padding:3px 5px 11px;
+}
+#carMode{
+  gap:12px;
+  padding-top:5px;
+}
+#carMode select{
+  padding:14px 30px 14px 13px;
+  min-height:50px;
+  font-size:15px;
+}
+#carMode #carBtn{
+  min-height:54px;
+  padding:15px 20px;
+  font-size:16px;
+  box-shadow:0 5px 14px rgba(118,184,42,.18);
+}
+.vehicle-picker .picker-note{
+  padding-top:12px;
+  font-size:11px;
+}
+
+.import-section{
+  max-width:900px;
+  padding:10px 12px;
+  margin-top:8px;
+  margin-bottom:10px;
+  border-radius:14px;
+  box-shadow:0 6px 20px rgba(24,33,43,.045);
+}
+.import-section .picker-title{
+  font-size:15px;
+  padding:2px 4px 4px;
+}
+.import-section>p.picker-note{
+  padding:4px 4px 5px;
+  margin:0;
+}
+.import-section .import-row{
+  gap:8px;
+}
+.import-section .file-picker{
+  padding:8px 11px;
+  font-size:12px;
+}
+.import-section .import-controls{
+  gap:8px;
+  margin-top:7px;
+}
+.import-section .import-controls select{
+  min-width:220px;
+  padding:9px 10px;
+  font-size:12px;
+}
+.import-section .import-controls button{
+  padding:9px 12px;
+  font-size:12px;
+}
+.import-section .picker-note:last-child{
+  padding-top:6px;
+  font-size:10px;
+}
+@media(max-width:560px){
+  .article-search-box{width:100%;padding:8px 10px}
+  .article-search-box .picker-title{font-size:14px}
+  .vehicle-picker{padding:15px}
+  .vehicle-picker .picker-title{font-size:20px}
+  #carMode{gap:9px}
+  #carMode select{min-height:47px;padding:12px 28px 12px 11px;font-size:14px}
+  #carMode #carBtn{min-height:50px;font-size:15px}
+  .import-section{padding:9px 10px}
+}
