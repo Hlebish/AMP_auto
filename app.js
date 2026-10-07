@@ -1222,6 +1222,41 @@ async function searchCar() {
 
     const addOrderItem = (row, contextItem = null, contextOem = "") => {
       const article=compact(row?.article || row?.catalog_number);
+
+      // Кросс сам по себе НЕ доказывает совместимость.
+      // Если для найденного артикула уже есть собственная строка каталога
+      // с fitment-данными, проверяем именно её по выбранному автомобилю.
+      // Это не даёт, например, детали 2022-2024 попасть в подбор 2014
+      // только потому, что её OEM совпал с деталью от более старой машины.
+      if (article) {
+        const ownCatalogRows = (Array.isArray(catalog) ? catalog : []).filter(item =>
+          compact(item?.catalog_number || "") === article &&
+          !item?._order &&
+          !item?._unavailable
+        );
+
+        const structuredRows = ownCatalogRows.filter(item =>
+          String(item?.marks || "").trim() ||
+          String(item?.models || "").trim() ||
+          String(item?.engine || "").trim()
+        );
+
+        if (structuredRows.length) {
+          const fitsSelectedVehicle = structuredRows.some(item =>
+            vehicleFitmentMatches(item, {
+              brand: selectedBrandText,
+              model: selectedModelText,
+              engine: selectedEngine,
+              year: selectedYear,
+              volume: selectedVolume,
+              fuel: selectedFuel,
+              body: selectedBody
+            })
+          );
+
+          if (!fitsSelectedVehicle) return;
+        }
+      }
       if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
 
       // Если артикул уже есть на складе — не создаём ни заказную,
