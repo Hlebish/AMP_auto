@@ -213,30 +213,34 @@
     ];
   }
 
+  // Строгий поиск по артикулу: только точное совпадение catalog_number.
+  // Название, описание, OEM, бренд и кроссы здесь НЕ участвуют.
   function articleSearch(q) {
     const cq = compact(q);
     if (!cq) return [];
 
-    return searchableCatalog().map(({item, source}) => {
-      const fields = [
-        item.catalog_number,item.manufacturer_parts,item.original_number,item.a,item.o
-      ].filter(Boolean).map(compact);
+    const sources = [
+      ...(Array.isArray(catalog) ? catalog : []),
+      ...(Array.isArray(window.orderCatalog) ? window.orderCatalog.map(asOrder) : []),
+      ...(Array.isArray(window.ampartsUnavailableCatalog) ? window.ampartsUnavailableCatalog : [])
+    ];
 
-      const exact = fields.some(x => x === cq);
-      const contains = fields.some(x => x.includes(cq));
-      return {
-        item,
-        source,
-        score: exact ? 10000 : contains ? 9000 : 0
-      };
-    })
-    .filter(x => x.score > 0)
-    .sort((a,b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      const rank = { stock: 0, unavailable: 1, order: 2 };
-      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
-    })
-    .map(x => x.item);
+    const result = [];
+    const seen = new Set();
+
+    for (const item of sources) {
+      const article = compact(item?.catalog_number || "");
+      if (!article || article !== cq || seen.has(item)) continue;
+      seen.add(item);
+      result.push(item);
+    }
+
+    result.sort((a, b) => {
+      const rank = item => item?._order ? 2 : item?._unavailable ? 1 : 0;
+      return rank(a) - rank(b);
+    });
+
+    return result;
   }
 
   function crossRowsForQuery(q) {
@@ -417,90 +421,26 @@
     window.__lastSearchQuery = raw;
 
     if (!raw) {
-      render(catalog.slice(0,100), "Каталог склада");
+      render(catalog.slice(0, 100), "Каталог склада");
       return;
     }
 
-    // Кроссы нужны для поиска, но огромный прайс под заказ НЕ ждём.
-    // Сначала мгновенно показываем склад, затем догружаем заказы в фоне.
-    try {
-      if (window.crossReady) await window.crossReady;
-    } catch (e) {}
-
-    const allTokens = words(raw);
-    const tokens = allTokens.filter(t => !stopWords.has(t));
-
-    // Артикул/OEM: сначала точные товары на складе, затем товары под заказ.
-    if (tokens.length === 1 && /^(?=.*[a-z])(?=.*\d)[a-z0-9-]{4,}$/i.test(tokens[0])) {
-      const exact = articleSearch(tokens[0]);
-      const combined = mergeStockAndOrder(exact, tokens[0]);
-
-      if (combined.length) {
-        render(combined, "Поиск: " + raw);
-        lazyOrderRefresh(raw);
-        return;
-      }
+    // Только артикул: без поиска по названию, описанию, OEM,
+    // бренду, модели или цепочке кроссов.
+    const exact = articleSearch(raw);
+    if (exact.length) {
+      render(exact, "Артикул: " + raw, true);
+      return;
     }
 
-    const brands = tokens.map(brandToken).filter(Boolean);
-    const parts = tokens.map(partToken).filter(Boolean);
+    // Если прайс под заказ ещё не загружен, догружаем его один раз.
+    // После загрузки lazyOrderRefresh повторит тот же строгий поиск.
+    if (!Array.isArray(window.orderCatalog) || !window.orderCatalog.length) {
+      lazyOrderRefresh(raw);
+      render([], "Артикул: " + raw, true);
+      return;
+    }
 
-    const primaryPart = parts.length
-      ? (tokens.map(partToken).find(Boolean) || parts[0])
-      : null;
-
-    // Если запрос состоит из одного типа детали, используем индекс заказного
-    // каталога вместо полного прохода по сотням тысяч строк.
-    const indexedPart = parts.length ? primaryPart : null;
-    const indexedBrand = !indexedPart && brands.length === 1 ? brands[0] : null;
-    const scored = searchableCatalog(indexedPart, indexedBrand).map(({item, source}) => {
-      let score = 0;
-
-      if (brands.length) {
-        if (!brands.every(b => brandMatches(item,b))) return null;
-        score += 220;
-      }
-
-      if (parts.length) {
-        const partScores = parts.map(p => partScore(item,p));
-        if (partScores.some(s => s <= 0)) return null;
-
-        score += partScores.reduce((a,b) => a+b, 0);
-        score += Math.max(...partScores);
-
-        if (primaryPart && partScores[parts.indexOf(primaryPart)] >= 140) score += 160;
-      }
-
-      for (const token of tokens) {
-        if (brandToken(token) || partToken(token)) continue;
-        score += genericMatchScore(item, token);
-      }
-
-      const name = clean(item.name);
-      const phrase = clean(tokens.join(" "));
-      if (phrase && name.includes(phrase)) score += 120;
-
-      if (parts.length === 1 && primaryPart) {
-        const ps = partScores[parts.indexOf(primaryPart)] ?? 0;
-        if (ps >= 140) score += 100;
-      }
-
-      if (item.catalog_number && compact(item.catalog_number) === compact(raw)) score += 5000;
-
-      return { item, source, score };
-    })
-    .filter(Boolean)
-    .filter(x => x.score > 0)
-    .sort((a,b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      const rank = { stock: 0, unavailable: 1, order: 2 };
-      return (rank[a.source] ?? 3) - (rank[b.source] ?? 3);
-    });
-
-    const stock = scored.map(x => x.item);
-    const combined = mergeStockAndOrder(stock, raw);
-
-    render(combined, "Поиск: " + raw);
-    lazyOrderRefresh(raw);
+    render([], "Артикул: " + raw, true);
   };
 })();
