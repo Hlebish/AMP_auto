@@ -1204,26 +1204,134 @@ async function searchCar() {
 
     const selectedBrandText = String($("#brand")?.value || b).trim();
     const selectedModelText = String(m || "").trim();
+
+    const romanToArabic = {
+      i:"1", ii:"2", iii:"3", iv:"4", v:"5",
+      vi:"6", vii:"7", viii:"8", ix:"9", x:"10",
+      xi:"11", xii:"12"
+    };
+
+    const orderModelProfile = (() => {
+      const raw = String(selectedModelText || "").trim();
+      const family = modelFamily(raw);
+      const familyTokens = norm(family)
+        .split(/\s+/)
+        .filter(Boolean);
+
+      const coreTokens = familyTokens.filter(token =>
+        !/^\d+$/.test(token) &&
+        !Object.prototype.hasOwnProperty.call(romanToArabic, token)
+      );
+
+      const generationTokens = familyTokens.filter(token =>
+        /^\d+$/.test(token) ||
+        Object.prototype.hasOwnProperty.call(romanToArabic, token)
+      );
+
+      const codes = modelCodes(raw);
+
+      return {
+        familyTokens,
+        coreTokens,
+        generationTokens,
+        codes
+      };
+    })();
+
+    const textTokenSet = text => new Set(norm(text).split(/\s+/).filter(Boolean));
+    const tokenMatches = (set, token) => {
+      if (set.has(token)) return true;
+      if (romanToArabic[token] && set.has(romanToArabic[token])) return true;
+      if (/^\d+$/.test(token)) {
+        const roman = Object.entries(romanToArabic).find(([, value]) => value === token)?.[0];
+        if (roman && set.has(roman)) return true;
+      }
+
+      const compactToken = compact(token);
+      if (compactToken.length >= 3) {
+        for (const value of set) {
+          if (compact(value) === compactToken) return true;
+        }
+      }
+
+      return false;
+    };
+
     const orderMatchesVehicleName = item => {
-      const text = norm([
+      const rawText = [
         item?.name,
         item?.description,
         item?.manufacturer_parts
-      ].filter(Boolean).join(" "));
+      ].filter(Boolean).join(" ");
+
+      const text = norm(rawText);
       if(!text) return false;
 
       const brandAliases = expandedToken(selectedBrandText);
-      const hasBrand = brandAliases.some(x => text.includes(norm(x)));
+      const hasBrand = brandAliases.some(alias => {
+        const token = norm(alias);
+        return textTokenSet(text).has(token) || text.includes(token);
+      });
       if(!hasBrand) return false;
 
-      const modelAlias = norm(selectedModelText).replace(/\([^)]*\)/g, " ").trim();
-      if(!modelAlias) return false;
+      const words = textTokenSet(text);
 
-      const modelWords = modelAlias.split(/\s+/).filter(x => x.length >= 3);
-      const hasModel = modelWords.length
-        ? modelWords.every(word => text.includes(word))
-        : text.includes(modelAlias);
-      if(!hasModel) return false;
+      // Основное правило: совпадает семейство модели. Поколение и коды
+      // проверяем дополнительно, но неизвестное поколение в прайсе НЕ
+      // отбрасываем — иначе теряем огромное количество заказных строк.
+      const hasCoreModel =
+        !orderModelProfile.coreTokens.length ||
+        orderModelProfile.coreTokens.every(token => {
+          if (tokenMatches(words, token)) return true;
+          return compact(text).includes(compact(token));
+        });
+
+      if(!hasCoreModel) return false;
+
+      const hasGeneration =
+        !orderModelProfile.generationTokens.length ||
+        orderModelProfile.generationTokens.some(token => tokenMatches(words, token));
+
+      const hasGenerationCode =
+        !orderModelProfile.codes.length ||
+        orderModelProfile.codes.some(code => compact(text).includes(compact(code)));
+
+      // Если прайс явно содержит поколение/код и он не совпадает,
+      // фильтруем такую строку. Если таких данных в прайсе нет — оставляем.
+      const textHasKnownGeneration =
+        orderModelProfile.generationTokens.some(token =>
+          tokenMatches(words, token)
+        ) ||
+        orderModelProfile.codes.some(code =>
+          compact(text).includes(compact(code))
+        );
+
+      if (textHasKnownGeneration && !hasGeneration && !hasGenerationCode) {
+        return false;
+      }
+
+      // Дополнительные фильтры применяем только если в самой строке прайса
+      // действительно есть распознаваемая информация. Неизвестность НЕ
+      // превращаем в "не подходит".
+      if (selectedYear) {
+        const ranges = extractYears(item);
+        if (ranges.length && !yearMatches(item, selectedYear)) return false;
+      }
+
+      if (selectedVolume) {
+        const volumes = engineVolumes(item);
+        if (volumes.length && !volumeMatches(item, selectedVolume)) return false;
+      }
+
+      if (selectedFuel) {
+        const detectedFuel = fuelType(item);
+        if (detectedFuel && detectedFuel !== selectedFuel) return false;
+      }
+
+      if (selectedBody) {
+        const detectedBody = bodyType(item);
+        if (detectedBody && detectedBody !== selectedBody) return false;
+      }
 
       if (item?.marks || item?.models || item?.engine) {
         return vehicleFitmentMatches(item, {
@@ -1237,11 +1345,7 @@ async function searchCar() {
         });
       }
 
-      // Старые строки без структурированных fitment-полей допускаем
-      // только если название явно содержит код выбранного поколения.
-      const selectedCode = modelCode(selectedModelText);
-      if (!selectedCode) return false;
-      return compact(text).includes(compact(selectedCode));
+      return true;
     };
 
     const addOrderItem = (row, contextItem = null, contextOem = "") => {
@@ -1328,27 +1432,66 @@ async function searchCar() {
       orderList.push(item);
     };
 
-    // 1. Кроссы от найденных складских деталей.
-    // Периодически отдаём поток браузеру и сразу перерисовываем новые
-    // карточки — каталог визуально растёт по мере поиска.
+    // 1. Полная цепочка кроссов от ВСЕХ найденных складских деталей.
+    // Раньше здесь был только один шаг OEM -> артикул. Теперь используем
+    // транзитивное семейство: OEM -> статья -> OEM -> статья и т.д.
+    // Также стартуем не только от OEM, но и от складского артикула.
+    // Это возвращает длинные цепочки эквивалентов, которые раньше терялись.
     let lastPaintedOrderCount=0;
-    let processedStock=0;
-    for(const stockItem of matched){
-      const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
-      for(const oem of oems){
-        const rows=window.crossData?.by_oem?.[oem]||[];
-        for(const row of rows){
-          addOrderItem(row, stockItem, oem);
-          if(orderList.length - lastPaintedOrderCount >= 12){
-            render([...stockList,...orderList], liveTitle, true);
-            lastPaintedOrderCount=orderList.length;
-            loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
-            await new Promise(resolve => setTimeout(resolve, 0));
-          }
+    const crossSeeds = new Set();
+    const crossRowsSeen = new Set();
+    let processedCrossRows = 0;
+    const MAX_CROSS_ROWS = 30000;
+
+    for (const stockItem of matched) {
+      const articleSeed = compact(stockItem?.catalog_number || "");
+      if (articleSeed) crossSeeds.add(articleSeed);
+
+      String(stockItem?.original_number || "")
+        .split(",")
+        .map(v => compact(v))
+        .filter(Boolean)
+        .forEach(seed => crossSeeds.add(seed));
+    }
+
+    for (const seed of crossSeeds) {
+      if (processedCrossRows >= MAX_CROSS_ROWS) break;
+
+      let rows = [];
+      if (typeof window.crossFamilyRows === "function") {
+        rows = window.crossFamilyRows(seed);
+      } else {
+        rows = [
+          ...(window.crossData?.by_oem?.[seed] || []),
+          ...(window.crossData?.by_article?.[seed] || [])
+        ];
+      }
+
+      for (const row of rows) {
+        if (processedCrossRows >= MAX_CROSS_ROWS) break;
+
+        const rowKey = [
+          compact(row?.article || ""),
+          compact(row?.brand || ""),
+          compact(row?.oem || ""),
+          compact(row?.oem_brand || "")
+        ].join("|");
+
+        if (!rowKey || crossRowsSeen.has(rowKey)) continue;
+        crossRowsSeen.add(rowKey);
+        processedCrossRows++;
+
+        addOrderItem(row, null, row?.oem || seed);
+
+        if (orderList.length - lastPaintedOrderCount >= 12) {
+          render([...stockList,...orderList], liveTitle, true);
+          lastPaintedOrderCount=orderList.length;
+          loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
+          await new Promise(resolve => setTimeout(resolve, 0));
         }
       }
-      processedStock++;
-      if(processedStock % 12 === 0){
+
+      if (processedCrossRows % 250 === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
       }
     }
