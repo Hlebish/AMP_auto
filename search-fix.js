@@ -178,6 +178,17 @@
     if (ws.includes(t)) return 35;
     if (text.includes(t)) return 25;
     if (ws.some(w => w.startsWith(t) || (s.length >= 4 && w.startsWith(s)))) return 18;
+
+    // Нечёткое совпадение включается только для достаточно длинных слов,
+    // чтобы не превращать короткие запросы в случайные совпадения.
+    if (t.length >= 5) {
+      const maxDistance = t.length >= 8 ? 2 : 1;
+      if (ws.some(w =>
+        Math.abs(w.length - t.length) <= maxDistance &&
+        levenshteinWithin(t, w, maxDistance) <= maxDistance
+      )) return maxDistance === 1 ? 10 : 8;
+    }
+
     return 0;
   }
 
@@ -214,6 +225,46 @@
     ];
   }
 
+  function levenshteinWithin(a, b, maxDistance = 2) {
+    a = compact(a);
+    b = compact(b);
+    if (!a || !b) return maxDistance + 1;
+    if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+    if (a === b) return 0;
+
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i];
+      let rowMin = i;
+
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        const value = Math.min(
+          cur[j - 1] + 1,
+          prev[j] + 1,
+          prev[j - 1] + cost
+        );
+        cur[j] = value;
+        if (value < rowMin) rowMin = value;
+      }
+
+      if (rowMin > maxDistance) return maxDistance + 1;
+      prev = cur;
+    }
+
+    return prev[b.length];
+  }
+
+  function fuzzyCodeScore(query, value) {
+    const a = compact(query);
+    const b = compact(value);
+    if (!a || !b || Math.abs(a.length - b.length) > 2) return 0;
+    const distance = levenshteinWithin(a, b, a.length >= 8 ? 2 : 1);
+    if (distance > (a.length >= 8 ? 2 : 1)) return 0;
+    return distance === 0 ? 10000 : distance === 1 ? 7000 : 5000;
+  }
+
   function articleSearch(q) {
     const cq = compact(q);
     if (!cq) return [];
@@ -225,10 +276,14 @@
 
       const exact = fields.some(x => x === cq);
       const contains = fields.some(x => x.includes(cq));
+      const fuzzy = !exact && !contains
+        ? Math.max(...fields.map(x => fuzzyCodeScore(cq, x)), 0)
+        : 0;
+
       return {
         item,
         source,
-        score: exact ? 10000 : contains ? 9000 : 0
+        score: exact ? 10000 : contains ? 9000 : fuzzy
       };
     })
     .filter(x => x.score > 0)
