@@ -63,7 +63,7 @@ const norm = v =>
     .replace(/[^a-zа-яіїєґ0-9]+/g, " ")
     .trim();
 
-const compact = v => norm(v).replace(/\s+/g, "");
+const compact = v => (typeof window.normalizePartNumber === "function" ? window.normalizePartNumber(v) : norm(v).replace(/\s+/g, ""));
 
 function isOwnManufacturer(value) {
   const key = compact(value);
