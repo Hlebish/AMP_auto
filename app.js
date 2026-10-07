@@ -776,14 +776,16 @@ let activePartType = "";
 let lastRenderedList = [];
 
 function detectPartType(item) {
-  const text = norm([
-    item?.name,item?.description,item?.manufacturer_parts,item?.catalog_number,
-    item?.original_number,item?.a,item?.n
-  ].filter(Boolean).join(" "));
+  const text = norm([item?.name, item?.description].filter(Boolean).join(" "));
   if (!text) return "";
-  for (const [type, aliases] of Object.entries(PART_TYPES)) {
-    if (aliases.some(alias => text.includes(norm(alias)))) return type;
+
+  for (const type of Object.keys(PART_TYPES)) {
+    for (const value of PART_TYPES[type]) {
+      const alias = norm(value);
+      if (alias && text.includes(alias)) return type;
+    }
   }
+
   return "";
 }
 
