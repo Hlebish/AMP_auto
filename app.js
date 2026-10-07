@@ -1060,15 +1060,6 @@ async function searchCar() {
       loading?.setText("Проверяем каталог…");
       await window.fullCatalogReady;
     }
-    if(window.ensureCrossDatabase) {
-      loading?.setText("Загружаем кроссы…");
-      await window.ensureCrossDatabase();
-    }
-    if(window.ensureOrderCatalog) {
-      loading?.setText("Загружаем товары под заказ…");
-      await window.ensureOrderCatalog();
-    }
-
     const matched=catalog.filter(item =>
       vehicleFitmentMatches(item, {
         brand: b,
@@ -1083,11 +1074,23 @@ async function searchCar() {
 
     const stockList=matched.slice();
 
-    // Показываем складские позиции сразу, не заставляя покупателя ждать
-    // загрузки всего прайса и кроссов.
+    // Сначала показываем реальные складские позиции.
+    // Большой прайс под заказ (~300k строк) и база кроссов грузятся
+    // только после того, как пользователь уже увидел результат склада.
     const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
     const liveTitle="Подбор: "+titleParts.join(" · ");
     render(stockList, liveTitle, true);
+    await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+
+    if(window.ensureCrossDatabase) {
+      loading?.setText("Загружаем кроссы…");
+      await window.ensureCrossDatabase();
+    }
+    if(window.ensureOrderCatalog) {
+      loading?.setText("Догружаем товары под заказ…");
+      await window.ensureOrderCatalog();
+    }
+
     loading?.setText("Ищем дополнительные варианты…");
     await new Promise(resolve => setTimeout(resolve, 0));
 
