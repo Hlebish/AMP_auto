@@ -846,9 +846,12 @@ function render(
 
   // Один и тот же артикул не показываем одновременно со склада
   // и как "ПОД ЗАКАЗ". Наличие складской позиции имеет приоритет.
+  // Используем ВЕСЬ складской каталог, а не только текущий результат.
+  // Иначе товар может попасть в "ПОД ЗАКАЗ" через кросс/прайс,
+  // даже если его складская карточка не попала в конкретную ветку поиска.
   const stockArticleKeys = new Set(
-    sourceList
-      .filter(item => item && !item._order && !item._unavailable)
+    (Array.isArray(catalog) ? catalog : sourceList)
+      .filter(item => item && !item._order && !item._unavailable && qtyValue(item.quantity) > 0)
       .map(item => compact(item.catalog_number || ""))
       .filter(Boolean)
   );
