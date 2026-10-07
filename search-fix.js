@@ -77,6 +77,7 @@
   }
 
   function compact(v) {
+    if (typeof window.normalizePartNumber === "function") return window.normalizePartNumber(v);
     return clean(v).replace(/\s+/g,"");
   }
 
