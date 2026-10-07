@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261007-normalized-v13";
+  const VERSION = "20261007-normalized-v14";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 4;
   const CATALOG_STORE = "catalog";
@@ -73,13 +73,16 @@
   }
 
   function unpack(r) {
+    const quantity = r.q ?? "";
+    const numericQuantity = qtyValue(quantity);
+
     return {
       catalog_number: r.c || "",
       search_key: compact(r.c || ""),
       manufacturer_parts: r.p || "",
       name: typeof cleanPartName === "function" ? cleanPartName(r.n || "") : r.n || "",
       description: r.d || "",
-      quantity: r.q ?? "",
+      quantity,
       price: r.pr ?? "",
       original_number: r.o || "",
       original_search_key: compact(r.o || ""),
@@ -87,7 +90,10 @@
       models: r.m || "",
       engine: r.e || "",
       image: r.i || "",
-      source: "catalog"
+      source: "catalog",
+      // Позиции без положительного остатка всё равно участвуют
+      // в подборе и кроссах, но не выдаются пользователю за складские.
+      _unavailable: numericQuantity <= 0
     };
   }
 
