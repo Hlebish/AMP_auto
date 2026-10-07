@@ -410,11 +410,6 @@
   }
 
 
-  function partScoresForItem(item, parts, primaryPart) {
-    if (!parts.length || !primaryPart) return 0;
-    return partScore(item, primaryPart);
-  }
-
   window.searchParts = async function(q) {
     const raw = String(q || "").trim();
     window.__lastSearchQuery = raw;
@@ -454,7 +449,7 @@
 
     // Если запрос состоит из одного типа детали, используем индекс заказного
     // каталога вместо полного прохода по сотням тысяч строк.
-    const indexedPart = parts.length === 1 && tokens.length === 1 ? parts[0] : null;
+    const indexedPart = parts.length ? primaryPart : null;
     const scored = searchableCatalog(indexedPart).map(({item, source}) => {
       let score = 0;
 
@@ -483,7 +478,7 @@
       if (phrase && name.includes(phrase)) score += 120;
 
       if (parts.length === 1 && primaryPart) {
-        const ps = partScoresForItem(item, parts, primaryPart);
+        const ps = partScores[parts.indexOf(primaryPart)] ?? 0;
         if (ps >= 140) score += 100;
       }
 
