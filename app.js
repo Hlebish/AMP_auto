@@ -995,7 +995,7 @@ async function searchCar() {
 
   // Даём браузеру отрисовать уже показанный loader до тяжёлых операций
   // IndexedDB/кроссов/прайса. Особенно важно на мобильных устройствах.
-  await new Promise(resolve => requestAnimationFrame(() => resolve()));
+  await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
   try {
     if(window.fullCatalogReady) {
@@ -1134,24 +1134,29 @@ async function searchCar() {
       }
     }
 
-    // 2. Прямой поиск по названию прайса. Это закрывает важный случай:
-    // товар есть только под заказ и в его названии прямо указано Nissan Rogue.
-    if(Array.isArray(window.orderCatalog)){
-      for(const item of window.orderCatalog){
-        if(orderMatchesVehicleName(item)){
-          addOrderItem({
-            article:item.catalog_number,
-            brand:item.manufacturer_parts,
-            name:item.name,
-            price:item.price
-          }, null, "");
-        }
+    // 2. Прямой поиск по названию прайса.
+    // Не сканируем весь прайс (~300k строк): сначала берём только
+    // позиции выбранной марки из предварительно построенного индекса.
+    const directOrderCandidates =
+      (window.orderBrandIndex?.[b] || []).length
+        ? window.orderBrandIndex[b]
+        : (Array.isArray(window.orderCatalog) ? window.orderCatalog : []);
+    for(const item of directOrderCandidates){
+      if(orderMatchesVehicleName(item)){
+        addOrderItem({
+          article:item.catalog_number,
+          brand:item.manufacturer_parts,
+          name:item.name,
+          price:item.price
+        }, null, "");
       }
     }
 
     // 3. Наши AMParts без наличия, которые явно относятся к выбранной машине.
     // Они должны быть видны как "НЕТ В НАЛИЧИИ", а не исчезать из подбора.
     if(Array.isArray(window.ampartsUnavailableCatalog)){
+      // AMParts-позиции также обычно небольшие по объёму; фильтруем по
+      // выбранной марке через тот же индекс, если он доступен.
       for(const item of window.ampartsUnavailableCatalog){
         if(orderMatchesVehicleName(item)){
           addOrderItem({
