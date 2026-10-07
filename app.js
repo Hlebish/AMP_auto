@@ -23,6 +23,9 @@ function syncAppLoading() {
 
 function startAppLoading(message = "Загрузка…") {
   const id = ++loadingJobId;
+  const startedAt = performance.now();
+  const MIN_VISIBLE_MS = 220;
+
   loadingJobs.set(id, String(message || "Загрузка…"));
   syncAppLoading();
 
@@ -34,8 +37,19 @@ function startAppLoading(message = "Загрузка…") {
     },
     stop() {
       if (!loadingJobs.has(id)) return;
-      loadingJobs.delete(id);
-      syncAppLoading();
+
+      const finish = () => {
+        if (!loadingJobs.has(id)) return;
+        loadingJobs.delete(id);
+        syncAppLoading();
+      };
+
+      const remaining = MIN_VISIBLE_MS - (performance.now() - startedAt);
+      if (remaining > 0) {
+        setTimeout(finish, remaining);
+      } else {
+        finish();
+      }
     }
   };
 }
@@ -933,6 +947,10 @@ async function searchCar() {
   if(!m){toast("⚠️ Выберите модель автомобиля");return;}
 
   const loading = window.startAppLoading?.("Подбираем детали…");
+
+  // Даём браузеру отрисовать уже показанный loader до тяжёлых операций
+  // IndexedDB/кроссов/прайса. Особенно важно на мобильных устройствах.
+  await new Promise(resolve => requestAnimationFrame(() => resolve()));
 
   try {
     if(window.fullCatalogReady) {
