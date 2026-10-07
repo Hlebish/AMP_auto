@@ -1052,11 +1052,14 @@ async function searchCar() {
 
   // Переходим к результатам сразу после нажатия кнопки.
   // Поиск и догрузка прайсов продолжаются уже после прокрутки.
+  // Мгновенно переносим пользователя к результатам сразу по нажатию
+  // кнопки — до любых await/загрузок каталога.
   const resultsSection = document.querySelector(".results-section");
   if (resultsSection) {
-    resultsSection.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
+    const top = resultsSection.getBoundingClientRect().top + window.scrollY - 70;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: "auto"
     });
   }
 
