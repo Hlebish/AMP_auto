@@ -1024,6 +1024,14 @@ async function searchCar() {
 
     const stockList=matched.slice();
 
+    // Показываем складские позиции сразу, не заставляя покупателя ждать
+    // загрузки всего прайса и кроссов.
+    const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
+    const liveTitle="Подбор: "+titleParts.join(" · ");
+    render(stockList, liveTitle, true);
+    loading?.setText("Ищем дополнительные варианты…");
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     const orderByArticle=new Map();
     if(Array.isArray(window.orderCatalog)){
       for(const item of window.orderCatalog){
@@ -1123,15 +1131,35 @@ async function searchCar() {
       orderList.push(item);
     };
 
-    // 1. Кроссы от всех найденных складских деталей.
+    // 1. Кроссы от найденных складских деталей.
+    // Периодически отдаём поток браузеру и сразу перерисовываем новые
+    // карточки — каталог визуально растёт по мере поиска.
+    let lastPaintedOrderCount=0;
+    let processedStock=0;
     for(const stockItem of matched){
       const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
       for(const oem of oems){
         const rows=window.crossData?.by_oem?.[oem]||[];
         for(const row of rows){
           addOrderItem(row, stockItem, oem);
+          if(orderList.length - lastPaintedOrderCount >= 12){
+            render([...stockList,...orderList], liveTitle, true);
+            lastPaintedOrderCount=orderList.length;
+            loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
         }
       }
+      processedStock++;
+      if(processedStock % 12 === 0){
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    }
+
+    if(orderList.length !== lastPaintedOrderCount){
+      render([...stockList,...orderList], liveTitle, true);
+      lastPaintedOrderCount=orderList.length;
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     // 2. Прямой поиск по названию прайса.
@@ -1141,7 +1169,8 @@ async function searchCar() {
       (window.orderBrandIndex?.[b] || []).length
         ? window.orderBrandIndex[b]
         : (Array.isArray(window.orderCatalog) ? window.orderCatalog : []);
-    for(const item of directOrderCandidates){
+    for(let i=0;i<directOrderCandidates.length;i++){
+      const item=directOrderCandidates[i];
       if(orderMatchesVehicleName(item)){
         addOrderItem({
           article:item.catalog_number,
@@ -1150,14 +1179,21 @@ async function searchCar() {
           price:item.price
         }, null, "");
       }
+      if(orderList.length - lastPaintedOrderCount >= 12){
+        render([...stockList,...orderList], liveTitle, true);
+        lastPaintedOrderCount=orderList.length;
+        loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
+        await new Promise(resolve => setTimeout(resolve, 0));
+      } else if(i % 250 === 0){
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
 
     // 3. Наши AMParts без наличия, которые явно относятся к выбранной машине.
     // Они должны быть видны как "НЕТ В НАЛИЧИИ", а не исчезать из подбора.
     if(Array.isArray(window.ampartsUnavailableCatalog)){
-      // AMParts-позиции также обычно небольшие по объёму; фильтруем по
-      // выбранной марке через тот же индекс, если он доступен.
-      for(const item of window.ampartsUnavailableCatalog){
+      for(let i=0;i<window.ampartsUnavailableCatalog.length;i++){
+        const item=window.ampartsUnavailableCatalog[i];
         if(orderMatchesVehicleName(item)){
           addOrderItem({
             article:item.catalog_number,
@@ -1167,12 +1203,19 @@ async function searchCar() {
             oem:item.original_number
           }, null, item.original_number || "");
         }
+        if(orderList.length - lastPaintedOrderCount >= 12){
+          render([...stockList,...orderList], liveTitle, true);
+          lastPaintedOrderCount=orderList.length;
+          loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
+          await new Promise(resolve => setTimeout(resolve, 0));
+        } else if(i % 250 === 0){
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
       }
     }
 
     const list=[...stockList,...orderList];
-    const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
-    render(list,"Подбор: "+titleParts.join(" · "), true);
+    render(list,liveTitle,true);
 
     setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   } finally {
