@@ -268,6 +268,24 @@
     const index = {};
     for (const key of Object.keys(partTerms)) index[key] = [];
 
+    // Индекс брендов нужен для запросов вроде "Nissan Rogue":
+    // после загрузки прайса не заставляем поиск каждый раз сканировать
+    // все ~300k строк.
+    const brandTerms = {
+      bmw:["bmw","бмв"], audi:["audi","ауди","ауді"],
+      mercedes:["mercedes","мерседес","mb"], volkswagen:["volkswagen","фольксваген","vw"],
+      toyota:["toyota","тойота"], honda:["honda","хонда"], mazda:["mazda","мазда"],
+      ford:["ford","форд"], nissan:["nissan","ниссан","ніссан"], renault:["renault","рено"],
+      skoda:["skoda","шкода"], hyundai:["hyundai","хендай","хюндай"], kia:["kia","киа","кіа"],
+      mitsubishi:["mitsubishi","митсубиси","мітсубісі"], opel:["opel","опель"],
+      peugeot:["peugeot","пежо"], citroen:["citroen","ситроен","сітроен"],
+      chevrolet:["chevrolet","шевроле","chevy"], lexus:["lexus","лексус"],
+      subaru:["subaru","субару"], volvo:["volvo","вольво"], jaguar:["jaguar","ягуар"],
+      jeep:["jeep","джип"]
+    };
+    const brandIndex = {};
+    for (const key of Object.keys(brandTerms)) brandIndex[key] = [];
+
     for (const item of orderCatalog) {
       const text = norm([
         item.name,
@@ -277,13 +295,16 @@
       if (!text) continue;
 
       for (const [key, terms] of Object.entries(partTerms)) {
-        if (terms.some(term => text.includes(norm(term)))) {
-          index[key].push(item);
-        }
+        if (terms.some(term => text.includes(norm(term)))) index[key].push(item);
+      }
+
+      for (const [key, terms] of Object.entries(brandTerms)) {
+        if (terms.some(term => text.includes(norm(term)))) brandIndex[key].push(item);
       }
     }
 
     window.orderPartIndex = index;
+    window.orderBrandIndex = brandIndex;
 
     if (!silent && typeof searchParts === "function") {
       render(catalog.slice(0, 100), "Каталог склада");
