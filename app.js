@@ -800,15 +800,17 @@ function filterByPartType(list) {
 
 function render(
   list,
-  title = "Каталог склада"
+  title = "Каталог склада",
+  showAll = false
 ) {
 
   lastRenderedList = Array.isArray(list) ? list.slice() : [];
   const filteredList = filterByPartType(lastRenderedList);
-  results = filteredList.slice(0, 300);
+  const displayList = showAll ? filteredList : filteredList.slice(0, 300);
+  results = displayList.slice();
 
   const titleEl = $("#resultTitle");
-  const baseTitle = title + (list.length > 300 ? " · первые 300" : "");
+  const baseTitle = title + (!showAll && list.length > 300 ? " · первые 300" : "");
   if (titleEl) {
     titleEl.dataset.baseTitle = baseTitle;
     titleEl.textContent = activePartType
@@ -828,8 +830,7 @@ function render(
   }
 
   $("#results").innerHTML =
-    filteredList
-      .slice(0, 300)
+    displayList
       .map(x => {
 
         const qty =
@@ -1102,7 +1103,7 @@ async function searchCar() {
 
     const list=[...stockList,...orderList];
     const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
-    render(list,"Подбор: "+titleParts.join(" · "));
+    render(list,"Подбор: "+titleParts.join(" · "), true);
 
     setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   } finally {
