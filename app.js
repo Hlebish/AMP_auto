@@ -1119,7 +1119,35 @@ async function searchCar() {
         .filter(Boolean)
     );
 
-    const ownStockArticles = window.ownStockArticles || new Set();
+    // Абсолютный приоритет складского каталога:
+    // любой AMParts-артикул с quantity > 0 считается складским,
+    // даже если отдельный индекс/кросс/старый кэш пытается вернуть его
+    // как заказной.
+    const runtimeOwnStockArticles = new Set(
+      (Array.isArray(catalog) ? catalog : [])
+        .filter(item =>
+          item &&
+          qtyValue(item.quantity) > 0 &&
+          isOwnManufacturer(item.manufacturer_parts || "")
+        )
+        .map(item => compact(item.catalog_number || ""))
+        .filter(Boolean)
+    );
+
+    const ownStockArticles = new Set([
+      ...(window.ownStockArticles || []),
+      ...runtimeOwnStockArticles
+    ]);
+
+    // Удаляем из заказного каталога любые наши AMParts, которые реально
+    // есть на складе прямо сейчас.
+    if (Array.isArray(window.ampartsUnavailableCatalog)) {
+      window.ampartsUnavailableCatalog =
+        window.ampartsUnavailableCatalog.filter(item =>
+          !runtimeOwnStockArticles.has(compact(item?.catalog_number || ""))
+        );
+    }
+
     const selectedBrandText = String($("#brand")?.value || b).trim();
     const selectedModelText = String(m || "").trim();
     const orderMatchesVehicleName = item => {
@@ -1168,7 +1196,11 @@ async function searchCar() {
 
       // Если артикул уже есть на складе — не создаём ни заказную,
       // ни "нет в наличии" карточку с тем же артикулом.
-      if(stockCatalogArticles.has(article) || ownStockArticles.has(article)) return;
+      if (
+        stockCatalogArticles.has(article) ||
+        ownStockArticles.has(article) ||
+        runtimeOwnStockArticles.has(article)
+      ) return;
 
       const ownByManufacturer =
         typeof window.isOwnManufacturer === "function"
