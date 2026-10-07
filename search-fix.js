@@ -64,6 +64,9 @@
     "правое", "the","a","an","of","for","with","on"
   ]);
 
+  // Кэшируем дорогую нормализацию текста между запросами.
+  const searchTextCache = new WeakMap();
+
   function clean(v) {
     return String(v ?? "")
       .toLowerCase()
@@ -107,12 +110,20 @@
     ].filter(Boolean).join(" ");
   }
 
-  function brandMatches(item, brand) {
-    const text = clean([
-      item.catalog_number,item.name,item.description,item.marks,item.models
-    ].filter(Boolean).join(" "));
+  function cachedSearchData(item) {
+    if (!item || typeof item !== "object") return { text:"", words:[] };
+    let data = searchTextCache.get(item);
+    if (data) return data;
+    const text = clean(fieldText(item));
+    data = { text, words: words(text) };
+    searchTextCache.set(item, data);
+    return data;
+  }
 
-    const ws = new Set(words(text));
+  function brandMatches(item, brand) {
+    const data = cachedSearchData(item);
+    const text = data.text;
+    const ws = new Set(data.words);
     const names = [brand, ...(brandAliases[brand] || [])].map(clean);
     if (names.some(n => ws.has(n))) return true;
 
@@ -123,10 +134,9 @@
   // Ищем именно тип детали. Для "капот" наличие слова "капота" в "замок капота"
   // не должно делать замок главным результатом: такие составные детали получают штраф.
   function partScore(item, part) {
-    const text = clean([
-      item.name,item.description,item.manufacturer_parts,item.catalog_number
-    ].filter(Boolean).join(" "));
-    const ws = words(text);
+    const data = cachedSearchData(item);
+    const text = data.text;
+    const ws = data.words;
     const aliases = [part, ...(partAliases[part] || [])].map(clean);
     let score = 0;
 
@@ -159,8 +169,9 @@
   }
 
   function genericMatchScore(item, token) {
-    const text = clean(fieldText(item));
-    const ws = words(text);
+    const data = cachedSearchData(item);
+    const text = data.text;
+    const ws = data.words;
     const t = clean(token);
     const s = stem(t);
     if (ws.includes(t)) return 35;
@@ -398,6 +409,12 @@
       });
   }
 
+
+  function partScoresForItem(item, parts, primaryPart) {
+    if (!parts.length || !primaryPart) return 0;
+    return partScore(item, primaryPart);
+  }
+
   window.searchParts = async function(q) {
     const raw = String(q || "").trim();
     window.__lastSearchQuery = raw;
@@ -453,7 +470,7 @@
         score += partScores.reduce((a,b) => a+b, 0);
         score += Math.max(...partScores);
 
-        if (primaryPart && partScore(item, primaryPart) >= 140) score += 160;
+        if (primaryPart && partScores[parts.indexOf(primaryPart)] >= 140) score += 160;
       }
 
       for (const token of tokens) {
@@ -466,7 +483,7 @@
       if (phrase && name.includes(phrase)) score += 120;
 
       if (parts.length === 1 && primaryPart) {
-        const ps = partScore(item, primaryPart);
+        const ps = partScoresForItem(item, parts, primaryPart);
         if (ps >= 140) score += 100;
       }
 
