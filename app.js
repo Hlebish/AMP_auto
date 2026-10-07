@@ -1856,44 +1856,6 @@ function populateEngines() { populateCarFilters(); }
    ФИЛЬТР ПО ТИПУ ДЕТАЛИ
 ========================= */
 
-const PART_TYPES = {
-  капот:["капот","hood","bonnet"], крыло:["крыло","крыла","крылья","крило","wing","fender"],
-  бампер:["бампер","бамперы","bumper"], дверь:["дверь","двери","дверей","дверью","дверця","door"],
-  фара:["фара","фары","фар","headlight","headlamp"], фонарь:["фонарь","фонари","ліхтар","tail light","taillight"],
-  решетка:["решетка","решётка","решітка","grille"], зеркало:["зеркало","зеркала","дзеркало","mirror"],
-  стекло:["стекло","стекла","скло","glass"], подкрылок:["подкрылок","подкрылка","подкрылки","підкрилок","fender liner"],
-  усилитель:["усилитель","усилителя","підсилювач","reinforcement"], накладка:["накладка","накладки","накладку","накладок","накладні"],
-  облицовка:["облицовка","облицовки","облицювання","trim"], замок:["замок","замка","замку","lock","latch"],
-  ручка:["ручка","ручки","ручку","handle"], молдинг:["молдинг","молдинги","molding"],
-  спойлер:["спойлер","спойлера","spoiler"], крышка:["крышка","крышки","крышку","кришка","cover"],
-  защита:["защита","защиты","защиту","захист","guard"], поршень:["поршень","поршни","поршня","поршней","piston","pistons"],
-  колодка:["колодка","колодки","тормозная колодка","brake pad"], диск:["диск","диски","тормозной диск","brake disc"],
-  фильтр:["фильтр","фильтры","filter"], свеча:["свеча","свечи","свеча зажигания","spark plug"],
-  пластик:["пластик","пластика","пластиковый","пластиковая","пластикове","plastic"]
-};
-
-let activePartType = "";
-let lastRenderedList = [];
-
-function detectPartType(item) {
-  const text = norm([item?.name, item?.description].filter(Boolean).join(" "));
-  if (!text) return "";
-
-  for (const type of Object.keys(PART_TYPES)) {
-    for (const value of PART_TYPES[type]) {
-      const alias = norm(value);
-      if (alias && text.includes(alias)) return type;
-    }
-  }
-
-  return "";
-}
-
-function filterByPartType(list) {
-  if (!activePartType) return list;
-  return list.filter(item => (item?._partType || detectPartType(item)) === activePartType);
-}
-
 /* =========================
    РЕЗУЛЬТАТЫ
 ========================= */
