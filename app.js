@@ -1,3 +1,25 @@
+const AMP_BUILD = "20261007-article-search-2";
+
+(async function ensureLatestBuild(){
+  try {
+    const response = await fetch("version.json?check=" + Date.now(), {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" }
+    });
+    if (!response.ok) return;
+    const remote = await response.json();
+    const remoteBuild = String(remote?.build || "");
+    if (remoteBuild && remoteBuild !== AMP_BUILD) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("v", remoteBuild);
+      url.searchParams.set("_refresh", Date.now());
+      window.location.replace(url.toString());
+    }
+  } catch (error) {
+    console.warn("AMP Auto version check:", error);
+  }
+})();
+
 const $ = s => document.querySelector(s);
 
 const loadingJobs = new Map();
