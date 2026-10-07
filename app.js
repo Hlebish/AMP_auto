@@ -1,4 +1,4 @@
-const AMP_BUILD = "20261007-article-search-2";
+const AMP_BUILD = "20261007-hierarchy-1";
 
 (async function ensureLatestBuild(){
   try {
