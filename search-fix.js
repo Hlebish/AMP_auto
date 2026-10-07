@@ -190,7 +190,7 @@
     };
   }
 
-  function searchableCatalog(partHint = null) {
+  function searchableCatalog(partHint = null, brandHint = null) {
     const stockRows = catalog.map(item => ({ item, source: "stock" }));
     const unavailableRows = Array.isArray(window.ampartsUnavailableCatalog)
       ? window.ampartsUnavailableCatalog
@@ -202,6 +202,8 @@
 
     if (partHint && window.orderPartIndex && Array.isArray(window.orderPartIndex[partHint])) {
       orderRows = window.orderPartIndex[partHint];
+    } else if (brandHint && window.orderBrandIndex && Array.isArray(window.orderBrandIndex[brandHint])) {
+      orderRows = window.orderBrandIndex[brandHint];
     }
 
     return [
@@ -450,7 +452,8 @@
     // Если запрос состоит из одного типа детали, используем индекс заказного
     // каталога вместо полного прохода по сотням тысяч строк.
     const indexedPart = parts.length ? primaryPart : null;
-    const scored = searchableCatalog(indexedPart).map(({item, source}) => {
+    const indexedBrand = !indexedPart && brands.length === 1 ? brands[0] : null;
+    const scored = searchableCatalog(indexedPart, indexedBrand).map(({item, source}) => {
       let score = 0;
 
       if (brands.length) {
