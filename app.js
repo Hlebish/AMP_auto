@@ -350,7 +350,26 @@ function initStats() {
 ========================= */
 
 function splitValues(value) {
-  return String(value || "").split(",").map(v => v.trim()).filter(Boolean);
+  const text = String(value || "");
+  const out = [];
+  let start = 0;
+  let depth = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "(") depth++;
+    else if (ch === ")" && depth > 0) depth--;
+    else if (ch === "," && depth === 0) {
+      const part = text.slice(start, i).trim();
+      if (part) out.push(part);
+      start = i + 1;
+    }
+  }
+
+  const last = text.slice(start).trim();
+  if (last) out.push(last);
+
+  return out;
 }
 
 function hasValue(field, wanted) {
