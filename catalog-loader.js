@@ -509,6 +509,14 @@
     return { rows: base, added, updated };
   }
 
+  window.getImportedCatalogState = async function() {
+    return getImportedState();
+  };
+
+  window.mergeImportedCatalogRows = function(baseRows, incomingRows) {
+    return mergeImportedRows(baseRows, incomingRows, "update").rows;
+  };
+
   async function getImportedState() {
     try {
       return await idbGet(IMPORT_STORE, "custom");
@@ -516,6 +524,35 @@
       console.warn("AMP Auto import cache:", e);
       return null;
     }
+  }
+
+  async function getGlobalImportState() {
+    try {
+      const cfgRes = await fetch("/__/firebase/init.json", { cache: "no-store" });
+      if (!cfgRes.ok) return null;
+      const cfg = await cfgRes.json();
+      if (!cfg?.storageBucket) return null;
+      const url =
+        "https://firebasestorage.googleapis.com/v0/b/" +
+        encodeURIComponent(cfg.storageBucket) +
+        "/o/" + encodeURIComponent("catalog/imports/current.json") +
+        "?alt=media&t=" + Date.now();
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return Array.isArray(data?.rows) ? data : null;
+    } catch (e) {
+      console.warn("AMP Auto global import:", e);
+      return null;
+    }
+  }
+
+  async function installGlobalImportState(baseRows, silent = true) {
+    const state = await getGlobalImportState();
+    if (!state?.rows?.length) return baseRows;
+    const merged = mergeImportedRows(baseRows, state.rows, state.mode || "update");
+    installCatalog(merged.rows, silent);
+    return merged.rows;
   }
 
   async function installImportedState(baseRows, silent = true) {
@@ -577,6 +614,7 @@
 
     installCatalog(cachedCatalog.rows, true);
     await installImportedState(catalog, true);
+    await installGlobalImportState(catalog, true);
 
     // Прайс под заказ НЕ разворачиваем при старте: даже чтение 300k
     // объектов из IndexedDB заметно подвешивает интерфейс.
@@ -613,6 +651,7 @@
         await idbPut(CATALOG_STORE, { key: cKey, version: manifest.version, rows });
         installCatalog(rows, true);
         await installImportedState(catalog, true);
+        await installGlobalImportState(catalog, true);
       })());
     }
 
