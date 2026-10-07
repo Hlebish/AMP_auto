@@ -1581,9 +1581,11 @@ function cleanPartName(value) {
 }
 
 function modelTemplateKey(value) {
-  const code = modelCode(value);
+  // Все коды поколения участвуют в ключе. Иначе:
+  // "CX-5 (KE, GH)" и "CX-5 (GH, KE)" ошибочно считались разными моделями.
+  const codes = modelCodes(value).sort();
   const family = compact(modelFamily(value));
-  return (code ? code + "|" : "") + family;
+  return (codes.length ? codes.join("+") + "|" : "") + family;
 }
 
 function prettyModelFamily(value) {
