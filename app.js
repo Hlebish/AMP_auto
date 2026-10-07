@@ -804,8 +804,8 @@ function render(
 ) {
 
   lastRenderedList = Array.isArray(list) ? list.slice() : [];
-  results = lastRenderedList.slice(0, 300);
   const filteredList = filterByPartType(lastRenderedList);
+  results = filteredList.slice(0, 300);
 
   const titleEl = $("#resultTitle");
   const baseTitle = title + (list.length > 300 ? " · первые 300" : "");
