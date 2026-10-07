@@ -527,6 +527,7 @@ function vehicleFitmentMatches(item, {
 
   // Для подбора автомобиля неизвестная совместимость НЕ считается совпадением.
   if (b && (!String(item.marks || "").trim() || !hasValue(item.marks, b))) return false;
+  if (b && m && !brandModelPairAllowed(item, b, m)) return false;
   if (m && (!String(item.models || "").trim() || !modelMatches(item, m))) return false;
   if (e && (!String(item.engine || "").trim() || !hasValue(item.engine, e))) return false;
 
@@ -1672,13 +1673,87 @@ function modelTemplateScore(value) {
   return score;
 }
 
+let brandModelEvidenceCache = null;
+let brandModelEvidenceCatalogRef = null;
+
+function buildBrandModelEvidence() {
+  if (brandModelEvidenceCache && brandModelEvidenceCatalogRef === catalog) {
+    return brandModelEvidenceCache;
+  }
+
+  const evidence = new Map();
+
+  for (const item of catalog) {
+    const brands = splitValues(item.marks)
+      .map(v => norm(v))
+      .filter(Boolean);
+
+    if (brands.length !== 1) continue;
+
+    const brand = brands[0];
+    const set = evidence.get(brand) || new Set();
+
+    for (const rawModel of splitValues(item.models)) {
+      const key = modelTemplateKey(rawModel);
+      if (key) set.add(key);
+    }
+
+    evidence.set(brand, set);
+  }
+
+  brandModelEvidenceCache = evidence;
+  brandModelEvidenceCatalogRef = catalog;
+  return evidence;
+}
+
+function brandModelPairAllowed(item, brand, model) {
+  const b = norm(brand);
+  const m = String(model || "").trim();
+  if (!b || !m) return true;
+
+  const brands = splitValues(item?.marks)
+    .map(v => norm(v))
+    .filter(Boolean);
+
+  if (!brands.includes(b)) return false;
+
+  // В строке с одной маркой связь марка → модель однозначна.
+  if (brands.length === 1) return modelMatches(item, m);
+
+  const requestedKeys = new Set(
+    splitValues(m).map(v => modelTemplateKey(v)).filter(Boolean)
+  );
+
+  const evidence = buildBrandModelEvidence();
+  const knownModelsForBrand = evidence.get(b);
+
+  // Для строк с несколькими марками больше не считаем модель
+  // автоматически общей для всех марок. Она должна существовать
+  // хотя бы в одной однозначной строке этой марки.
+  if (knownModelsForBrand && requestedKeys.size) {
+    const hasEvidence = [...requestedKeys].some(key =>
+      knownModelsForBrand.has(key)
+    );
+
+    if (!hasEvidence) return false;
+  } else if (!knownModelsForBrand) {
+    return false;
+  }
+
+  return modelMatches(item, m);
+}
+
 function modelTemplatesForBrand(brand) {
   const b = norm(brand);
   const groups = new Map();
   if (!b) return [];
+
   catalog.forEach(item => {
     if (!hasValue(item.marks, b)) return;
+
     splitValues(item.models).forEach(raw => {
+      if (!brandModelPairAllowed(item, b, raw)) return;
+
       const key = modelTemplateKey(raw);
       if (!key) return;
       const current = groups.get(key);
@@ -1687,6 +1762,7 @@ function modelTemplatesForBrand(brand) {
       }
     });
   });
+
   return [...groups.values()].sort((a, b) =>
     a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" })
   );
