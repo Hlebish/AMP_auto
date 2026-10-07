@@ -1050,6 +1050,16 @@ async function searchCar() {
   if(!b){toast("⚠️ Выберите марку автомобиля");return;}
   if(!m){toast("⚠️ Выберите модель автомобиля");return;}
 
+  // Переходим к результатам сразу после нажатия кнопки.
+  // Поиск и догрузка прайсов продолжаются уже после прокрутки.
+  const resultsSection = document.querySelector(".results-section");
+  if (resultsSection) {
+    resultsSection.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
   const loading = window.startAppLoading?.("Подбираем детали…");
 
   // Даём браузеру отрисовать уже показанный loader до тяжёлых операций
