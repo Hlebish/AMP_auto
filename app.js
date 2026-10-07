@@ -1516,8 +1516,23 @@ function modelTemplateLabel(value) {
   const family = prettyModelFamily(value);
   const m = String(value ?? "").match(/\(([^)]{1,80})\)/);
   const code = m ? m[1].trim().replace(/\s+/g, " ") : "";
+
   if (!family) return code ? "(" + code + ")" : String(value ?? "").trim();
-  return code ? family + " (" + code + ")" : family;
+  if (!code) return family;
+
+  // Если коды поколений уже записаны в основном названии,
+  // не дублируем их ещё раз в скобках:
+  // "3 G20 G80 G28 (G20, G80, G28)" -> "3 G20 G80 G28".
+  const familyTokens = new Set(family.toLowerCase().split(/\s+/).filter(Boolean));
+  const codes = code
+    .split(/[,/;|]+/)
+    .map(v => v.trim().toLowerCase())
+    .filter(Boolean);
+
+  const allCodesAlreadyVisible =
+    codes.length > 0 && codes.every(v => familyTokens.has(v));
+
+  return allCodesAlreadyVisible ? family : family + " (" + code + ")";
 }
 
 function modelTemplateScore(value) {
@@ -2531,4 +2546,3 @@ if (
     "dark"
   );
 }
-
