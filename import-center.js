@@ -149,9 +149,20 @@
 
   async function firebaseApp() {
     if (!window.firebase) throw new Error("Firebase SDK не загружен");
-    const cfgRes = await fetch("/__/firebase/init.json", { cache:"no-store" });
-    if (!cfgRes.ok) throw new Error("Не найден Firebase Hosting init.json");
-    const config = await cfgRes.json();
+
+    // AMP Auto Firebase project. Hosting init.json is not available
+    // because this site is not served from Firebase Hosting.
+    const config = {
+      apiKey: "AIzaSyBHAc4Fra0X8GwtqwMjH_kk8T4rNhQxvMw",
+      authDomain: "amp-auto.firebaseapp.com",
+      databaseURL: "https://amp-auto-default-rtdb.firebaseio.com",
+      projectId: "amp-auto",
+      storageBucket: "amp-auto.firebasestorage.app",
+      messagingSenderId: "305575986701",
+      appId: "1:305575986701:web:424e1d1e14a2855274f744",
+      measurementId: "G-2QCSL0Y4YX"
+    };
+
     if (!firebase.apps.length) firebase.initializeApp(config);
     if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
     return firebase.app();
