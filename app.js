@@ -417,7 +417,7 @@ function bodyType(item) {
 }
 
 function modelCodes(value) {
-  const match = norm(value).match(/\(([^)]{1,80})\)/);
+  const match = String(value ?? "").match(/\(([^)]{1,80})\)/);
   if (!match) return [];
 
   return match[1]
