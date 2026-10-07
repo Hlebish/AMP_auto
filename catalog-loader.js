@@ -2,7 +2,7 @@
   // Быстрый запуск AMP Auto:
   // полный каталог и кроссы один раз сохраняются в IndexedDB.
   // При следующих заходах они берутся локально, а сервер проверяется в фоне.
-  const VERSION = "20261007-normalized-v14";
+  const VERSION = "20261007-normalized-v15";
   const DB_NAME = "amp_auto_cache";
   const DB_VERSION = 4;
   const CATALOG_STORE = "catalog";
@@ -86,7 +86,7 @@
       price: r.pr ?? "",
       original_number: r.o || "",
       original_search_key: compact(r.o || ""),
-      marks: r.b || "",
+      marks: normalizeVehicleBrand(r.b || "", r.m || "", r.n || "", r.d || ""),
       models: r.m || "",
       engine: r.e || "",
       image: r.i || "",
@@ -121,6 +121,24 @@
     } finally {
       loading?.stop();
     }
+  }
+
+  function normalizeVehicleBrand(markValue, modelValue, nameValue, descriptionValue) {
+    const rawMarks = String(markValue || "").trim();
+    const brands = rawMarks.split(/[,;|]+/).map(v => v.trim()).filter(Boolean);
+    const text = norm([modelValue, nameValue, descriptionValue].filter(Boolean).join(" "));
+
+    const hasMiniModel =
+      /\bmini(?:\s+cooper)?\b/i.test(text) ||
+      /\bmini\s+(?:countryman|clubman|hatch|cabrio|coupe|roadster|paceman)\b/i.test(text);
+
+    // В исходных данных часть MINI ошибочно записана как BMW.
+    // В селекторе автомобиля MINI должна быть отдельной маркой.
+    if (hasMiniModel && brands.length === 1 && norm(brands[0]) === "bmw") {
+      return "MINI";
+    }
+
+    return rawMarks;
   }
 
   function isAmpartsManufacturer(value) {
@@ -289,7 +307,7 @@
     // после загрузки прайса не заставляем поиск каждый раз сканировать
     // все ~300k строк.
     const brandTerms = {
-      bmw:["bmw","бмв"], audi:["audi","ауди","ауді"],
+      bmw:["bmw","бмв"], mini:["mini","мини","mini cooper"], audi:["audi","ауди","ауді"],
       mercedes:["mercedes","мерседес","mb"], volkswagen:["volkswagen","фольксваген","vw"],
       toyota:["toyota","тойота"], honda:["honda","хонда"], mazda:["mazda","мазда"],
       ford:["ford","форд"], nissan:["nissan","ниссан","ніссан"], renault:["renault","рено"],
