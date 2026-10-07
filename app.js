@@ -416,161 +416,46 @@ function bodyType(item) {
   return "";
 }
 
+function modelCodes(value) {
+  const match = norm(value).match(/\(([^)]{1,80})\)/);
+  if (!match) return [];
+
+  return match[1]
+    .split(/[,/;|]+/)
+    .map(part => compact(part))
+    .filter(Boolean);
+}
+
 function modelCode(value) {
-  const m = norm(value).match(/\(([^)]{1,24})\)/);
-  return m ? compact(m[1]) : "";
+  return modelCodes(value)[0] || "";
 }
 
-function modelFamily(value) {
-  let s = norm(value)
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
-    .replace(/\b(i{1,3}|iv|v)\b/g, " ");
-
-  const tokens = s.split(/\s+/).filter(Boolean);
-  if (tokens.length > 1) {
-    s = tokens
-      .filter((t, i) => !(i > 0 && /^\d{1,2}$/.test(t)))
-      .join(" ");
-  }
-
-  s = s
-    .replace(/\b(sedan|saloon|wagon|touring|variant|estate|combi|hatchback|hatch|coupe|cabrio|convertible|van|mpv|pickup|cab|универсал|седан|купе|кабриолет|фургон|минивен|пикап|хетчбек|хэтчбек)\b/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return s;
-}
-
-function canonicalModel(value) {
-  let s = norm(value)
-    .replace(/\b(mk|gen|generation|поколение)\b/g, " ")
-    .replace(/\b(i{1,3}|iv|v)\b/g, " ");
-
-  const tokens = s.split(/\s+/).filter(Boolean);
-  if (tokens.length > 1) {
-    s = tokens
-      .filter((t, i) => !(i > 0 && /^\d{1,2}$/.test(t)))
-      .join(" ");
-  }
-
-  return s
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function cleanPartName(value) {
-  let text = String(value ?? "").trim();
-  for (let i = 0; i < 3; i++) {
-    const next = text.replace(/^\s*деталь\b\s*[:№#-]?\s*/iu, "").trim();
-    if (next === text) break;
-    text = next;
-  }
-  return text;
-}
-
-function modelTemplateKey(value) {
-  const code = modelCode(value);
-  const family = compact(modelFamily(value));
-  return (code ? code + "|" : "") + family;
-}
-
-function prettyModelFamily(value) {
-  const family = modelFamily(value);
-  if (!family) return "";
-  return family.split(/\s+/).filter(Boolean).map(token => {
-    if (/^[a-z]{1,3}-[a-z0-9]+$/i.test(token)) {
-      const [head, ...rest] = token.split("-");
-      return head.toUpperCase() + (rest.length ? "-" + rest.join("-") : "");
-    }
-    if (/^[a-z]+\d+[a-z0-9]*$/i.test(token) && token.length <= 6) return token.toUpperCase();
-    if (/^[a-z]{2,3}$/i.test(token)) return token.toUpperCase();
-    return token.charAt(0).toUpperCase() + token.slice(1);
-  }).join(" ");
-}
-
-function modelTemplateLabel(value) {
-  const family = prettyModelFamily(value);
-  const m = String(value ?? "").match(/\(([^)]{1,80})\)/);
-  const code = m ? m[1].trim().replace(/\s+/g, " ") : "";
-  if (!family) return code ? "(" + code + ")" : String(value ?? "").trim();
-  return code ? family + " (" + code + ")" : family;
-}
-
-function modelTemplateScore(value) {
-  const raw = String(value ?? "");
-  let score = raw.length;
-  if (/\b(sedan|saloon|wagon|touring|variant|estate|combi|hatchback|hatch|coupe|cabrio|convertible|van|mpv|pickup|cab)\b/i.test(raw)) score += 50;
-  if (/\b(mk|gen|generation|поколение)\b/i.test(raw)) score += 30;
-  if (/\b(i{1,3}|iv|v)\b/i.test(raw)) score += 15;
-  return score;
-}
-
-function modelTemplatesForBrand(brand) {
-  const b = norm(brand);
-  const groups = new Map();
-  if (!b) return [];
-  catalog.forEach(item => {
-    if (!hasValue(item.marks, b)) return;
-    splitValues(item.models).forEach(raw => {
-      const key = modelTemplateKey(raw);
-      if (!key) return;
-      const current = groups.get(key);
-      if (!current || modelTemplateScore(raw) < modelTemplateScore(current.raw)) {
-        groups.set(key, { key, raw, label: modelTemplateLabel(raw) });
-      }
-    });
-  });
-  return [...groups.values()].sort((a, b) =>
-    a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" })
-  );
-}
-
-function cleanModelList(value) {
-  const seen = new Set();
-  const out = [];
-  splitValues(value).forEach(raw => {
-    const key = modelTemplateKey(raw) || compact(raw);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    out.push(modelTemplateLabel(raw));
-  });
-  return out;
-}
 function modelMatches(item, query) {
   const q = canonicalModel(query);
   if (!q) return true;
 
-  const qCode = modelCode(query);
+  const qCodes = modelCodes(query);
   const qFamily = modelFamily(query);
 
   return splitValues(item.models).some(value => {
     const n = canonicalModel(value);
-    const code = modelCode(value);
+    const codes = modelCodes(value);
 
-    // Если пользователь выбрал конкретное поколение/кузовной код
-    // (например X4 (F26)), другой код (например X4 (G02)) не подходит.
-    if (qCode) {
-      if (code && code !== qCode) return false;
+    if (qCodes.length) {
+      // При выборе поколения отсутствие кода больше НЕ является совпадением.
+      if (!codes.length) return false;
 
-      // Если у позиции код не указан, разрешаем её только как fallback:
-      // старые прайсы часто не содержат поколение явно.
-      if (!code) {
-        return n === q || n.includes(q) || q.includes(n);
-      }
+      // Для групп вида X3 (G01, F97, G08) достаточно пересечения кодов.
+      if (!qCodes.some(qCode => codes.includes(qCode))) return false;
 
       const family = modelFamily(value);
       return (
-        code === qCode &&
-        (
-          family === qFamily ||
-          family.startsWith(qFamily + " ") ||
-          qFamily.startsWith(family + " ")
-        )
+        family === qFamily ||
+        family.startsWith(qFamily + " ") ||
+        qFamily.startsWith(family + " ")
       );
     }
 
-    // Если поколение не выбрано, работаем по семейству модели.
     return n === q || n.includes(q) || q.includes(n);
   });
 }
