@@ -707,18 +707,63 @@ function populateYears(rows, resetValue = true) {
   const years = new Set();
   const currentYear = new Date().getFullYear();
 
+  // В прайсе год может находиться не только в одном поле.
+  // Например, у CX-7 год встречается в названии детали, а модель/двигатель
+  // при этом не содержат год. Поэтому собираем годы ПО КАЖДОМУ полю отдельно,
+  // а не полагаемся на fallback внутри extractYears().
+  const yearRangesFromText = text => {
+    const value = String(text || "");
+    const ranges = [];
+
+    let m;
+    const rangeRe = /\\b((?:19|20)\\d{2})\\s*[-–—]\\s*((?:19|20)\\d{2})?/g;
+    while ((m = rangeRe.exec(value))) {
+      ranges.push({
+        from: Number(m[1]),
+        to: m[2] ? Number(m[2]) : null
+      });
+    }
+
+    const shortRangeRe = /\\b(0?[1-9]|1[0-2])\\.(\\d{2})\\s*[-–—]\\s*(?:(0?[1-9]|1[0-2])\\.(\\d{2}))?/g;
+    while ((m = shortRangeRe.exec(value))) {
+      ranges.push({
+        from: 2000 + Number(m[2]),
+        to: m[4] ? 2000 + Number(m[4]) : null
+      });
+    }
+
+    if (!ranges.length) {
+      for (const match of value.matchAll(/\\b((?:19|20)\\d{2})\\b/g)) {
+        const year = Number(match[1]);
+        ranges.push({from: year, to: year});
+      }
+    }
+
+    return ranges;
+  };
+
   rows.forEach(item => {
-    extractYears(item).forEach(r => {
+    // Сначала учитываем уже существующий парсер, затем независимо проверяем
+    // все текстовые поля. Это гарантирует, что год из name/description не
+    // потеряется из-за года в models/engine.
+    const ranges = [
+      ...extractYears(item),
+      ...[
+        item?.name,
+        item?.description,
+        item?.models,
+        item?.engine
+      ].flatMap(yearRangesFromText)
+    ];
+
+    ranges.forEach(r => {
       const from = Math.max(1950, Number(r.from) || 0);
       if (!Number.isFinite(from) || from > currentYear) return;
 
-      // 2035 используется внутри extractYears() как техническая
-      // граница для записей вида "2010-". В выпадающем списке
-      // технические годы показывать нельзя: максимум — текущий год.
       const rawTo = Number(r.to);
-      // Открытый диапазон "2010-" означает действительность до текущего года,
-      // а не до искусственной верхней границы.
-      const to = Number.isFinite(rawTo) ? Math.min(currentYear, rawTo) : currentYear;
+      const to = Number.isFinite(rawTo)
+        ? Math.min(currentYear, rawTo)
+        : currentYear;
 
       if (to < from) return;
       for (let y = from; y <= to; y++) years.add(y);
