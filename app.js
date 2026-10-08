@@ -770,6 +770,18 @@ function populateYears(rows, resetValue = true) {
     });
   });
 
+  // Некоторые строки каталога действительно не содержат год, хотя поколение
+  // модели однозначно известно по коду. Для таких моделей используем
+  // технический fallback, чтобы каскад не превращался в "Год — любой".
+  // Это НЕ добавляет фиктивные годы в товарные данные: это диапазон поколения.
+  const selectedModel = String($("#model")?.value || "").trim();
+  const selectedBrand = norm($("#brand")?.value || "");
+  const modelKey = norm(selectedModel);
+
+  if (selectedBrand === "mazda" && /\\bcx\\s*[- ]?7\\b/.test(modelKey) && /\\ber\\b/.test(modelKey)) {
+    for (let y = 2006; y <= 2012; y++) years.add(y);
+  }
+
   const values = [...years]
     .filter(y => y >= 1950 && y <= currentYear)
     .sort((a, b) => b - a);
