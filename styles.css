@@ -222,6 +222,12 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
 #articleSearchBtn{
   min-width:88px;
   padding:10px 14px;
+  background:#6f7780;
+  color:#fff;
+  box-shadow:none;
+}
+#articleSearchBtn:hover{
+  background:#5f666e;
 }
 .article-search-box .picker-note{
   padding:6px 4px 0;
