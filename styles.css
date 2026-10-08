@@ -313,3 +313,18 @@ body.dark{--bg:#0e1419;--card:#171f26;--text:#edf3f7;--muted:#9aa8b3;--line:#334
   #carMode #carBtn{min-height:50px;font-size:15px}
   .import-section{padding:9px 10px}
 }
+
+
+/* Sequential vehicle fitment result tabs */
+.result-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.result-tab{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:10px;padding:9px 13px;font-weight:850;cursor:pointer;transition:.15s ease}
+.result-tab:hover{border-color:#b8c1c8;color:var(--text)}
+.result-tab.active{background:#eef1f3;color:#303840;border-color:#aeb7bf;box-shadow:0 2px 8px rgba(24,33,43,.06)}
+.result-tab span{display:inline-block;min-width:22px;margin-left:5px;padding:2px 6px;border-radius:999px;background:#e1e5e8;color:#59636c;font-size:11px}
+.possible-result{border-color:#e1d59a;background:linear-gradient(90deg,var(--card),#fffdf2)}
+.possible-badge{display:inline-block;font-weight:900;font-size:11px;letter-spacing:.3px;border-radius:7px;padding:3px 7px;margin:2px 0 3px;background:#fff4bf;color:#856404}
+.dark .result-tab.active{background:#273039;color:#edf3f7;border-color:#52606b}
+.dark .result-tab span{background:#34414a;color:#d4dde3}
+.dark .possible-result{background:linear-gradient(90deg,var(--card),#241f0d);border-color:#665a28}
+.dark .possible-badge{background:#493d12;color:#ffd966}
+@media(max-width:560px){.result-tabs{gap:6px}.result-tab{flex:1;min-width:0;padding:9px 8px;font-size:12px}}
