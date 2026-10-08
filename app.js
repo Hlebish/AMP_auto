@@ -1852,7 +1852,7 @@ $("#year").onchange=()=>{
 };
 $("#engine").onchange=()=>{
   const value = String($("#engine")?.value || "");
-  populateCarFilters();
+  populateCarFilters(2);
   if (value && [...($("#engine")?.options || [])].some(o => o.value === value)) {
     $("#engine").value = value;
   }
