@@ -529,7 +529,7 @@ function isAutomotiveCatalogItem(item) {
   return true;
 }
 
-function vehicleFitmentMatches(item, {
+function vehicleFitmentStatus(item, {
   brand = "",
   model = "",
   engine = "",
@@ -538,37 +538,51 @@ function vehicleFitmentMatches(item, {
   fuel = "",
   body = ""
 } = {}) {
-  if (!item || !isAutomotiveCatalogItem(item)) return false;
+  if (!item || !isAutomotiveCatalogItem(item)) return "no";
 
   const b = norm(brand);
   const m = String(model || "").trim();
   const e = String(engine || "").trim();
+  let uncertain = false;
 
-  // Для подбора автомобиля неизвестная совместимость НЕ считается совпадением.
-  if (b && (!String(item.marks || "").trim() || !hasValue(item.marks, b))) return false;
-  if (b && m && !brandModelPairAllowed(item, b, m)) return false;
-  if (m && (!String(item.models || "").trim() || !modelMatches(item, m))) return false;
-  if (e && (!String(item.engine || "").trim() || !hasValue(item.engine, e))) return false;
+  if (b && (!String(item.marks || "").trim() || !hasValue(item.marks, b))) return "no";
+  if (b && m && !brandModelPairAllowed(item, b, m)) return "no";
+  if (m && (!String(item.models || "").trim() || !modelMatches(item, m))) return "no";
 
-  if (year) {
-    const text = textOf(item);
-    const ranges = extractYears(item);
-    if (!text || !ranges.length || !yearMatches(item, year)) return false;
+  if (e) {
+    if (!String(item.engine || "").trim()) uncertain = true;
+    else if (!hasValue(item.engine, e)) return "no";
   }
 
-  if (volume && (!String(item.engine || "").trim() || !volumeMatches(item, volume))) return false;
+  if (year) {
+    const ranges = extractYears(item);
+    if (!ranges.length) uncertain = true;
+    else if (!yearMatches(item, year)) return "no";
+  }
+
+  if (volume) {
+    const volumes = engineVolumes(item);
+    if (!volumes.length) uncertain = true;
+    else if (!volumeMatches(item, volume)) return "no";
+  }
 
   if (fuel) {
     const detected = fuelType(item);
-    if (!detected || detected !== fuel) return false;
+    if (!detected) uncertain = true;
+    else if (detected !== fuel) return "no";
   }
 
   if (body) {
     const detected = bodyType(item);
-    if (!detected || detected !== body) return false;
+    if (!detected) uncertain = true;
+    else if (detected !== body) return "no";
   }
 
-  return true;
+  return uncertain ? "possible" : "match";
+}
+
+function vehicleFitmentMatches(item, filters = {}) {
+  return vehicleFitmentStatus(item, filters) === "match";
 }
 
 window.vehicleFitmentMatches = vehicleFitmentMatches;
@@ -702,65 +716,69 @@ function populateVolumes(rows, resetValue = true) {
 }
 
 function populateCarFilters() {
-  const rows = currentCarBase();
+  const baseRows = currentCarBase();
+  const selectedYear = String($("#year")?.value || "").trim();
+  const selectedEngine = String($("#engine")?.value || "").trim();
+  const selectedVolume = String($("#volume")?.value || "").trim();
+  const selectedFuel = String($("#fuel")?.value || "").trim();
+  const selectedBody = String($("#body")?.value || "").trim();
+
+  const byYear = selectedYear
+    ? baseRows.filter(x => {
+        const ranges = extractYears(x);
+        return !ranges.length || yearMatches(x, selectedYear);
+      })
+    : baseRows;
+
+  const byEngine = selectedEngine
+    ? byYear.filter(x => !String(x.engine || "").trim() || hasValue(x.engine, selectedEngine))
+    : byYear;
+
+  const byVolume = selectedVolume
+    ? byEngine.filter(x => !engineVolumes(x).length || volumeMatches(x, selectedVolume))
+    : byEngine;
+
   const engineEl = $("#engine");
   const fuelEl = $("#fuel");
   const bodyEl = $("#body");
+  const engines = new Set(), fuels = new Set(), bodies = new Set();
 
-  const engines = new Set();
-  const fuels = new Set();
-  const bodies = new Set();
-
-  rows.forEach(x => {
+  byYear.forEach(x => {
     splitValues(x.engine).forEach(v => engines.add(v));
     const f = fuelType(x);
-    const b = bodyType(x);
     if (f) fuels.add(f);
-    if (b) bodies.add(b);
+  });
+  byVolume.forEach(x => {
+    const bt = bodyType(x);
+    if (bt) bodies.add(bt);
   });
 
   if (engineEl) {
     engineEl.innerHTML =
       '<option value="">Двигатель — любой</option>' +
-      [...engines]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .slice(0, 500)
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
+      [...engines].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,500)
+        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
+    if (selectedEngine && [...engineEl.options].some(o => o.value === selectedEngine)) engineEl.value = selectedEngine;
   }
 
   if (fuelEl) {
     fuelEl.innerHTML =
       '<option value="">Топливо — любое</option>' +
-      [...fuels]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
+      [...fuels].sort((a,b)=>a.localeCompare(b,"ru"))
+        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
+    if (selectedFuel && [...fuelEl.options].some(o => o.value === selectedFuel)) fuelEl.value = selectedFuel;
   }
 
   if (bodyEl) {
     bodyEl.innerHTML =
       '<option value="">Кузов — любой</option>' +
-      [...bodies]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
+      [...bodies].sort((a,b)=>a.localeCompare(b,"ru"))
+        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
+    if (selectedBody && [...bodyEl.options].some(o => o.value === selectedBody)) bodyEl.value = selectedBody;
   }
 
-  populateYears(rows);
-  populateVolumes(rows);
+  populateYears(baseRows, false);
+  populateVolumes(byEngine);
 }
 function populateEngines() { populateCarFilters(); }
 
@@ -785,7 +803,9 @@ const PART_TYPES = {
 };
 
 let activePartType = "";
+let activeResultTab = "fit";
 let lastRenderedList = [];
+let lastPossibleList = [];
 
 function detectPartType(item) {
   const text = norm([item?.name, item?.description].filter(Boolean).join(" "));
@@ -873,13 +893,24 @@ function mergeStockDuplicates(list) {
   return output;
 }
 
+function bindResultTabs() {
+  document.querySelectorAll("[data-result-tab]").forEach(btn => {
+    btn.onclick = () => {
+      activeResultTab = btn.dataset.resultTab === "possible" ? "possible" : "fit";
+      render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада", true, lastPossibleList);
+    };
+  });
+}
+
 function render(
   list,
   title = "Каталог склада",
-  showAll = false
+  showAll = false,
+  possibleList = []
 ) {
 
   const sourceList = mergeStockDuplicates(list);
+  const possibleSourceList = mergeStockDuplicates(possibleList);
 
   // Один и тот же артикул не показываем одновременно со склада
   // и как "ПОД ЗАКАЗ". Наличие складской позиции имеет приоритет.
@@ -904,8 +935,16 @@ function render(
   });
 
   lastRenderedList = visibleSourceList.slice();
+  lastPossibleList = possibleSourceList.filter(item => {
+    if (!item) return false;
+    const article = compact(item.catalog_number || "");
+    return !article || !stockArticleKeys.has(article);
+  }).map(item => ({...item, _possible: true}));
+
   const filteredList = filterByPartType(lastRenderedList);
-  const displayList = showAll ? filteredList : filteredList.slice(0, 300);
+  const filteredPossibleList = filterByPartType(lastPossibleList);
+  const currentTabList = activeResultTab === "possible" ? filteredPossibleList : filteredList;
+  const displayList = showAll ? currentTabList : currentTabList.slice(0, 300);
   results = displayList.slice();
 
   const titleEl = $("#resultTitle");
@@ -917,18 +956,29 @@ function render(
       : baseTitle;
   }
 
-  if (!filteredList.length) {
+  const fitCount = filteredList.length;
+  const possibleCount = filteredPossibleList.length;
+  const tabs = possibleCount
+    ? '<div class="result-tabs">' +
+        '<button type="button" class="result-tab ' + (activeResultTab === "fit" ? "active" : "") + '" data-result-tab="fit">Подходит <span>' + fitCount + '</span></button>' +
+        '<button type="button" class="result-tab ' + (activeResultTab === "possible" ? "active" : "") + '" data-result-tab="possible">Возможно подойдёт <span>' + possibleCount + '</span></button>' +
+      '</div>'
+    : '';
 
+  if (!currentTabList.length) {
     $("#results").innerHTML =
+      tabs +
       '<div class="empty">' +
-      "Ничего не найдено среди деталей, " +
-      "которые есть в наличии." +
+      (activeResultTab === "possible"
+        ? "Нет позиций с неопределённой совместимостью."
+        : "Ничего не найдено среди деталей, которые точно подходят.") +
       "</div>";
-
+    bindResultTabs();
     return;
   }
 
   $("#results").innerHTML =
+    tabs +
     displayList
       .map(x => {
 
@@ -938,7 +988,7 @@ function render(
           );
 
         return `
-          <article class="result-card ${x._order ? "order-result" : x._unavailable ? "unavailable-result" : ""}">
+          <article class="result-card ${x._possible ? "possible-result" : x._order ? "order-result" : x._unavailable ? "unavailable-result" : ""}">
             <div>
               <div class="result-name">
                 ${escapeHtml(
@@ -968,13 +1018,16 @@ function render(
                 <br>
 
                 ${
-                  x._unavailable
-                    ? '<span class="unavailable-badge">🔴 НЕТ В НАЛИЧИИ</span><br>Производитель: ' +
-                      escapeHtml(x.manufacturer_parts || "AMPARTS")
-                    : x._order
-                      ? '<span class="order-badge">🟠 ПОД ЗАКАЗ</span><br>Производитель: ' +
-                        escapeHtml(x._order_brand || "Не указан")
-                      : '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
+                  x._possible
+                    ? '<span class="possible-badge">🟡 ВОЗМОЖНО ПОДОЙДЁТ</span><br>Производитель: ' +
+                      escapeHtml(x.manufacturer_parts || x._order_brand || "Не указан")
+                    : x._unavailable
+                      ? '<span class="unavailable-badge">🔴 НЕТ В НАЛИЧИИ</span><br>Производитель: ' +
+                        escapeHtml(x.manufacturer_parts || "AMPARTS")
+                      : x._order
+                        ? '<span class="order-badge">🟠 ПОД ЗАКАЗ</span><br>Производитель: ' +
+                          escapeHtml(x._order_brand || "Не указан")
+                        : '<span class="stock-badge">🟢 НА СКЛАДЕ</span>'
                 }
 
                 <br>
@@ -1114,17 +1167,23 @@ async function searchCar() {
       loading?.setText("Проверяем каталог…");
       await window.fullCatalogReady;
     }
-    const matched=catalog.filter(item =>
-      vehicleFitmentMatches(item, {
-        brand: b,
-        model: m,
-        engine: selectedEngine,
-        year: selectedYear,
-        volume: selectedVolume,
-        fuel: selectedFuel,
-        body: selectedBody
-      })
-    );
+    const vehicleFilters = {
+      brand: b,
+      model: m,
+      engine: selectedEngine,
+      year: selectedYear,
+      volume: selectedVolume,
+      fuel: selectedFuel,
+      body: selectedBody
+    };
+
+    const matched = [];
+    const possibleStock = [];
+    for (const item of catalog) {
+      const status = vehicleFitmentStatus(item, vehicleFilters);
+      if (status === "match") matched.push(item);
+      else if (status === "possible") possibleStock.push({...item, _possible: true});
+    }
 
     const stockList=matched.slice();
 
@@ -1133,7 +1192,8 @@ async function searchCar() {
     // только после того, как пользователь уже увидел результат склада.
     const titleParts=[$("#brand")?.value,m,selectedYear,selectedVolume?(selectedVolume+" л"):"",selectedEngine].filter(Boolean);
     const liveTitle="Подбор: "+titleParts.join(" · ");
-    render(stockList, liveTitle, true);
+    activeResultTab = "fit";
+    render(stockList, liveTitle, true, possibleStock);
     await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
 
     if(window.ensureCrossDatabase) {
@@ -1161,7 +1221,7 @@ async function searchCar() {
     // строки. Поэтому ищем товары под заказ двумя путями:
     // 1) через кроссы OEM/артикулов найденных деталей;
     // 2) напрямую по названию товара, если в нём явно указан бренд/модель.
-    const orderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
+    const orderList=[], possibleOrderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
 
     // Авторитетный набор ВСЕХ артикулов, которые реально есть на складе.
     // Проверяем его непосредственно перед добавлением заказной позиции,
@@ -1258,84 +1318,66 @@ async function searchCar() {
       return false;
     };
 
-    const orderMatchesVehicleName = item => {
-      const rawText = [
-        item?.name,
-        item?.description,
-        item?.manufacturer_parts
-      ].filter(Boolean).join(" ");
-
+    const orderFitmentStatus = item => {
+      const rawText = [item?.name,item?.description,item?.manufacturer_parts].filter(Boolean).join(" ");
       const text = norm(rawText);
-      if(!text) return false;
+      if(!text) return "no";
 
-      const brandAliases = expandedToken(selectedBrandText);
-      const hasBrand = brandAliases.some(alias => {
-        const token = norm(alias);
-        return textTokenSet(text).has(token) || text.includes(token);
-      });
-      if(!hasBrand) return false;
-
+      const aliases = expandedToken(selectedBrandText);
       const words = textTokenSet(text);
+      const hasBrand = aliases.some(alias => {
+        const token = norm(alias);
+        return words.has(token) || text.includes(token);
+      });
+      if(!hasBrand) return "no";
 
-      // Основное правило: совпадает семейство модели. Поколение и коды
-      // проверяем дополнительно, но неизвестное поколение в прайсе НЕ
-      // отбрасываем — иначе теряем огромное количество заказных строк.
       const hasCoreModel =
         !orderModelProfile.coreTokens.length ||
-        orderModelProfile.coreTokens.every(token => {
-          if (tokenMatches(words, token)) return true;
-          return compact(text).includes(compact(token));
-        });
-
-      if(!hasCoreModel) return false;
+        orderModelProfile.coreTokens.every(token =>
+          tokenMatches(words, token) || compact(text).includes(compact(token))
+        );
+      if(!hasCoreModel) return "no";
 
       const hasGeneration =
         !orderModelProfile.generationTokens.length ||
         orderModelProfile.generationTokens.some(token => tokenMatches(words, token));
-
       const hasGenerationCode =
         !orderModelProfile.codes.length ||
         orderModelProfile.codes.some(code => compact(text).includes(compact(code)));
-
-      // Если прайс явно содержит поколение/код и он не совпадает,
-      // фильтруем такую строку. Если таких данных в прайсе нет — оставляем.
       const textHasKnownGeneration =
-        orderModelProfile.generationTokens.some(token =>
-          tokenMatches(words, token)
-        ) ||
-        orderModelProfile.codes.some(code =>
-          compact(text).includes(compact(code))
-        );
+        orderModelProfile.generationTokens.some(token => tokenMatches(words, token)) ||
+        orderModelProfile.codes.some(code => compact(text).includes(compact(code)));
 
-      if (textHasKnownGeneration && !hasGeneration && !hasGenerationCode) {
-        return false;
-      }
+      if (textHasKnownGeneration && !hasGeneration && !hasGenerationCode) return "no";
 
-      // Дополнительные фильтры применяем только если в самой строке прайса
-      // действительно есть распознаваемая информация. Неизвестность НЕ
-      // превращаем в "не подходит".
+      let uncertain = false;
       if (selectedYear) {
         const ranges = extractYears(item);
-        if (ranges.length && !yearMatches(item, selectedYear)) return false;
+        if (ranges.length) {
+          if (!yearMatches(item, selectedYear)) return "no";
+        } else uncertain = true;
       }
-
       if (selectedVolume) {
         const volumes = engineVolumes(item);
-        if (volumes.length && !volumeMatches(item, selectedVolume)) return false;
+        if (volumes.length) {
+          if (!volumeMatches(item, selectedVolume)) return "no";
+        } else uncertain = true;
       }
-
       if (selectedFuel) {
-        const detectedFuel = fuelType(item);
-        if (detectedFuel && detectedFuel !== selectedFuel) return false;
+        const detected = fuelType(item);
+        if (detected) {
+          if (detected !== selectedFuel) return "no";
+        } else uncertain = true;
       }
-
       if (selectedBody) {
-        const detectedBody = bodyType(item);
-        if (detectedBody && detectedBody !== selectedBody) return false;
+        const detected = bodyType(item);
+        if (detected) {
+          if (detected !== selectedBody) return "no";
+        } else uncertain = true;
       }
 
       if (item?.marks || item?.models || item?.engine) {
-        return vehicleFitmentMatches(item, {
+        const status = vehicleFitmentStatus(item, {
           brand: selectedBrandText,
           model: selectedModelText,
           engine: selectedEngine,
@@ -1344,12 +1386,14 @@ async function searchCar() {
           fuel: selectedFuel,
           body: selectedBody
         });
+        if (status === "no") return "no";
+        if (status === "possible") uncertain = true;
       }
 
-      return true;
+      return uncertain ? "possible" : "match";
     };
 
-    const addOrderItem = (row, contextItem = null, contextOem = "") => {
+    const addOrderItem = (row, contextItem = null, contextOem = "", possible = false) => {
       const article=compact(row?.article || row?.catalog_number);
 
       // Кросс сам по себе НЕ доказывает совместимость.
@@ -1402,7 +1446,12 @@ async function searchCar() {
 
         item._partType = contextItem ? detectPartType(contextItem) : detectPartType(item);
         seenOwnUnavailable.add(article);
-        orderList.push(item);
+        if (possible) {
+          item._possible = true;
+          possibleOrderList.push(item);
+        } else {
+          orderList.push(item);
+        }
         return;
       }
 
@@ -1429,8 +1478,13 @@ async function searchCar() {
           };
 
       item._partType = contextItem ? detectPartType(contextItem) : detectPartType(item);
-      seenOrder.add(article);
-      orderList.push(item);
+      if (possible) {
+        item._possible = true;
+        possibleOrderList.push(item);
+      } else {
+        seenOrder.add(article);
+        orderList.push(item);
+      }
     };
 
     // 1. Полная цепочка кроссов от ВСЕХ найденных складских деталей.
@@ -1512,13 +1566,14 @@ async function searchCar() {
         : (Array.isArray(window.orderCatalog) ? window.orderCatalog : []);
     for(let i=0;i<directOrderCandidates.length;i++){
       const item=directOrderCandidates[i];
-      if(orderMatchesVehicleName(item)){
+      const fitmentStatus = orderFitmentStatus(item);
+      if(fitmentStatus !== "no"){
         addOrderItem({
           article:item.catalog_number,
           brand:item.manufacturer_parts,
           name:item.name,
           price:item.price
-        }, null, "");
+        }, null, "", fitmentStatus === "possible");
       }
       if(orderList.length - lastPaintedOrderCount >= 12){
         render([...stockList,...orderList], liveTitle, true);
@@ -1535,14 +1590,15 @@ async function searchCar() {
     if(Array.isArray(window.ampartsUnavailableCatalog)){
       for(let i=0;i<window.ampartsUnavailableCatalog.length;i++){
         const item=window.ampartsUnavailableCatalog[i];
-        if(orderMatchesVehicleName(item)){
+        const fitmentStatus = orderFitmentStatus(item);
+        if(fitmentStatus !== "no"){
           addOrderItem({
             article:item.catalog_number,
             brand:item.manufacturer_parts || "AMPARTS",
             name:item.name,
             price:item.price,
             oem:item.original_number
-          }, null, item.original_number || "");
+          }, null, item.original_number || "", fitmentStatus === "possible");
         }
         if(orderList.length - lastPaintedOrderCount >= 12){
           render([...stockList,...orderList], liveTitle, true);
@@ -1556,7 +1612,7 @@ async function searchCar() {
     }
 
     const list=[...stockList,...orderList];
-    render(list,liveTitle,true);
+    render(list,liveTitle,true,[...possibleStock,...possibleOrderList]);
 
     setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   } finally {
@@ -1677,12 +1733,14 @@ $("#brand").onchange=()=>{
 $("#model").onchange=()=>{
   populateCarFilters();
 };
-$("#year").onchange=()=>{};
-$("#volume").onchange=()=>{};
+$("#year").onchange=()=>{ populateCarFilters(); };
+$("#engine").onchange=()=>{ populateCarFilters(); };
+$("#volume").onchange=()=>{ populateCarFilters(); };
+$("#fuel").onchange=()=>{ populateCarFilters(); };
 
 $("#partTypeFilter").onchange=()=>{
   activePartType = String($("#partTypeFilter")?.value || "");
-  render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада");
+  render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада", true, lastPossibleList);
 };
 
 $("#clearBtn").onclick=()=>{
