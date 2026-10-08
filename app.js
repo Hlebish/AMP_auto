@@ -1901,42 +1901,45 @@ $("#articleSearchInput").addEventListener("keydown", event => {
   if (event.key === "Enter") searchExactArticle();
 });
 $("#brand").onchange=()=>{
-  populateModels(true);
+  // vehicle-master owns the authoritative cascade after it is installed.
+  // Use window.* here because local function declarations are lexical and
+  // cannot be replaced merely by assigning window.populateModels.
+  (window.populateModels || populateModels)(true);
 };
 $("#model").onchange=()=>{
-  populateCarFilters(0);
+  (window.populateCarFilters || populateCarFilters)(0);
 };
 $("#year").onchange=()=>{
   const value = String($("#year")?.value || "");
-  populateCarFilters(1);
+  (window.populateCarFilters || populateCarFilters)(1);
   if (value && [...($("#year")?.options || [])].some(o => o.value === value)) {
     $("#year").value = value;
   }
 };
 $("#engine").onchange=()=>{
   const value = String($("#engine")?.value || "");
-  populateCarFilters(2);
+  (window.populateCarFilters || populateCarFilters)(2);
   if (value && [...($("#engine")?.options || [])].some(o => o.value === value)) {
     $("#engine").value = value;
   }
 };
 $("#volume").onchange=()=>{
   const value = String($("#volume")?.value || "");
-  populateCarFilters(3);
+  (window.populateCarFilters || populateCarFilters)(3);
   if (value && [...($("#volume")?.options || [])].some(o => o.value === value)) {
     $("#volume").value = value;
   }
 };
 $("#fuel").onchange=()=>{
   const value = String($("#fuel")?.value || "");
-  populateCarFilters(4);
+  (window.populateCarFilters || populateCarFilters)(4);
   if (value && [...($("#fuel")?.options || [])].some(o => o.value === value)) {
     $("#fuel").value = value;
   }
 };
 $("#body").onchange=()=>{
   const value = String($("#body")?.value || "");
-  populateCarFilters(5);
+  (window.populateCarFilters || populateCarFilters)(5);
   if (value && [...($("#body")?.options || [])].some(o => o.value === value)) {
     $("#body").value = value;
   }
