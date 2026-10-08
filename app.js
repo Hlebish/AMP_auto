@@ -738,6 +738,13 @@ function populateCarFilters() {
     ? byEngine.filter(x => !engineVolumes(x).length || volumeMatches(x, selectedVolume))
     : byEngine;
 
+  const byFuel = selectedFuel
+    ? byVolume.filter(x => {
+        const detected = fuelType(x);
+        return !detected || detected === selectedFuel;
+      })
+    : byVolume;
+
   const engineEl = $("#engine");
   const fuelEl = $("#fuel");
   const bodyEl = $("#body");
@@ -745,10 +752,12 @@ function populateCarFilters() {
 
   byYear.forEach(x => {
     splitValues(x.engine).forEach(v => engines.add(v));
+  });
+  byVolume.forEach(x => {
     const f = fuelType(x);
     if (f) fuels.add(f);
   });
-  byVolume.forEach(x => {
+  byFuel.forEach(x => {
     const bt = bodyType(x);
     if (bt) bodies.add(bt);
   });
