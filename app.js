@@ -1353,7 +1353,7 @@ async function searchCar() {
     const matched = [];
     const possibleStock = [];
     for (const item of catalog) {
-      const status = vehicleFitmentStatus(item, vehicleFilters);
+      const status = window.vehicleFitmentStatus(item, vehicleFilters);
       if (status === "match") matched.push(item);
       else if (status === "possible") possibleStock.push({...item, _possible: true});
     }
@@ -1550,7 +1550,7 @@ async function searchCar() {
       }
 
       if (item?.marks || item?.models || item?.engine) {
-        const status = vehicleFitmentStatus(item, {
+        const status = window.vehicleFitmentStatus(item, {
           brand: selectedBrandText,
           model: selectedModelText,
           engine: selectedEngine,
