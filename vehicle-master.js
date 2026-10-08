@@ -120,6 +120,38 @@
     return evidence;
   }
 
+  function fuelTypesFromEngineText(value) {
+    const text = keyNorm(value);
+    const result = new Set();
+
+    if (!text) return [];
+
+    // Diesel обозначения, которые реально встречаются в каталогах:
+    // MZR-CD, CDI, TDI, TDCi, CRDi, dCi, HDi, CDTi, JTD и т.п.
+    if (/\\bmzr\\s*cd\\b|\\b(?:cdi|tdi|tdci|crdi|dci|hdi|cdti|jtd|d-4d|d4d|sdv6|d\\b|diesel)\\b/.test(text)) {
+      result.add("Дизель");
+    }
+
+    if (/\\b(?:phev|hev|hybrid|гибрид)\\b/.test(text)) {
+      result.add("Гибрид");
+    }
+
+    if (/\\b(?:electric|ev|e[- ]?soul|электр)\\b/.test(text)) {
+      result.add("Электро");
+    }
+
+    // L/л + бензиновые обозначения. Обычный "2.0 L" в этом каталоге
+    // также является бензиновым, если тот же конкретный engine-entry не
+    // содержит diesel-маркер.
+    const hasVolume = /\\b\\d+(?:[.,]\\d+)?\\s*(?:l|л)\\b/.test(text);
+    const hasPetrolMarker = /\\b(?:gdi|tsi|tfsi|mpi|fsi|petrol|gasoline|benz|бенз)\\b/.test(text);
+    if ((hasVolume || hasPetrolMarker) && !/\\bmzr\\s*cd\\b|\\b(?:cdi|tdi|tdci|crdi|dci|hdi|cdti|jtd|d-4d|d4d|diesel)\\b/.test(text)) {
+      result.add("Бензин");
+    }
+
+    return [...result];
+  }
+
   function parseProfileFromRow(row, brandEvidence) {
     const brands = typeof splitValues === "function"
       ? splitValues(row?.marks)
@@ -196,7 +228,17 @@
           ? engineVolumes(row)
           : [];
 
-        const fuel = typeof fuelType === "function" ? fuelType(row) : "";
+        // Определяем топливо по каждому engine-entry, а не один раз
+        // по всей строке. Иначе смешанная строка (например CX-7 2.2
+        // MZR-CD + 2.3/2.5 бензин) теряет один из типов топлива.
+        const engineEntries = typeof splitValues === "function"
+          ? splitValues(row?.engine)
+          : clean(row?.engine).split(",");
+
+        const fuels = unique(
+          engineEntries.flatMap(entry => fuelTypesFromEngineText(entry))
+        );
+
         const body = typeof bodyType === "function" ? bodyType(row) : "";
 
         result.push({
@@ -207,7 +249,7 @@
           years: unique(years).map(Number).sort((a, b) => b - a),
           engines: unique(engines),
           volumes: unique(volumes).map(Number).filter(Number.isFinite).sort((a, b) => a - b),
-          fuels: fuel ? [fuel] : [],
+          fuels,
           bodies: body ? [body] : [],
           evidenceCount: 1
         });
