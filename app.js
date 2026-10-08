@@ -1841,11 +1841,11 @@ $("#brand").onchange=()=>{
   populateModels(true);
 };
 $("#model").onchange=()=>{
-  populateCarFilters();
+  populateCarFilters(0);
 };
 $("#year").onchange=()=>{
   const value = String($("#year")?.value || "");
-  populateCarFilters();
+  populateCarFilters(1);
   if (value && [...($("#year")?.options || [])].some(o => o.value === value)) {
     $("#year").value = value;
   }
