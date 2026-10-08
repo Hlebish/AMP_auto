@@ -869,8 +869,14 @@ function populateCarFilters(changedIndex = 0) {
         ).join("");
   }
 
-  // Сначала строим год и объём.
-  if (changedIndex <= 0) populateYears(baseRows, false);
+  // Год строим только при смене модели. Но если сторонний код/загрузка
+  // неожиданно очистила select, восстанавливаем его из текущей модели,
+  // не сбрасывая уже выбранный год.
+  if (changedIndex <= 0 || (changedIndex > 0 && document.querySelector("#year")?.options.length <= 1)) {
+    populateYears(baseRows, false);
+  }
+
+  // Объём зависит от года + двигателя и является следующим уровнем каскада.
   if (changedIndex <= 2) populateVolumes(byEngine, false);
 
   // После полной перестройки восстанавливаем ВСЕ выбранные значения.
