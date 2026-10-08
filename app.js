@@ -1276,33 +1276,53 @@ function render(
 
 function searchParts(q) {
 
-  if (!q.trim()) {
+  const query = String(q || "").trim();
 
-    render(
-      catalog.slice(0, 100),
-      "Каталог склада"
-    );
-
+  if (!query) {
+    render(catalog.slice(0, 100), "Каталог склада");
     return;
   }
 
-  const scored =
-    catalog
-      .map(x => ({
-        x,
-        s: scoreItem(x, q)
-      }))
-      .filter(o => o.s > 0)
-      .sort(
-        (a, b) =>
-          b.s - a.s
-      );
+  // Поиск должен работать по ВСЕМ источникам:
+  // склад + прайс под заказ. Раньше здесь проверялся только catalog,
+  // поэтому заказные позиции никогда не находились обычным поиском.
+  if (window.ensureOrderCatalog) {
+    const loading = window.startAppLoading?.("Ищем по всему каталогу…");
+    try {
+      await window.ensureOrderCatalog();
+    } catch (error) {
+      console.warn("Не удалось загрузить прайс под заказ:", error);
+    } finally {
+      loading?.stop();
+    }
+  }
+
+  const sources = [
+    ...(Array.isArray(catalog) ? catalog : []),
+    ...(Array.isArray(window.orderCatalog) ? window.orderCatalog : [])
+  ];
+
+  // Не удаляем одинаковые артикулы: складская и заказная позиции
+  // должны отображаться отдельно, если они обе существуют.
+  const scored = sources
+    .map(x => ({
+      x,
+      s: scoreItem(x, query)
+    }))
+    .filter(o => o.s > 0)
+    .sort((a, b) => {
+      // Сначала склад, затем заказ.
+      const stockA = a.x?._order ? 1 : 0;
+      const stockB = b.x?._order ? 1 : 0;
+      return stockA - stockB || b.s - a.s;
+    });
 
   render(
     scored.map(o => o.x),
-    "Поиск: " + q
+    "Поиск: " + query
   );
 }
+
 
 async function searchCar() {
   const b=norm($("#brand")?.value);
