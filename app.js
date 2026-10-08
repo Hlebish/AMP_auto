@@ -766,7 +766,7 @@ function populateVolumes(rows, resetValue = true) {
   }
 }
 
-function populateCarFilters() {
+function populateCarFilters(changedIndex = 0) {
   // Сохраняем ВСЕ текущие значения до перестройки select'ов.
   // Иначе выбор следующего фильтра может сбросить предыдущий.
   const selected = {
@@ -870,8 +870,8 @@ function populateCarFilters() {
   }
 
   // Сначала строим год и объём.
-  populateYears(baseRows, false);
-  populateVolumes(byEngine, false);
+  if (changedIndex <= 0) populateYears(baseRows, false);
+  if (changedIndex <= 2) populateVolumes(byEngine, false);
 
   // После полной перестройки восстанавливаем ВСЕ выбранные значения.
   // Значение восстанавливаем только если оно действительно есть
