@@ -500,11 +500,15 @@
     }
   }
 
+  let baseVehicleFitmentStatus = null;
+
   function strictVehicleFitmentStatus(item, filters = {}) {
     // Сначала обычная проверка строки товара.
-    if (typeof vehicleFitmentStatus !== "function") return "possible";
+    // Сохраняем исходную функцию до установки master-обёртки,
+    // иначе обёртка вызвала бы сама себя.
+    if (typeof baseVehicleFitmentStatus !== "function") return "possible";
 
-    const baseStatus = vehicleFitmentStatus(item, filters);
+    const baseStatus = baseVehicleFitmentStatus(item, filters);
     if (baseStatus === "no") return "no";
 
     // Проверяем, существует ли вообще выбранная конфигурация в master.
@@ -519,6 +523,7 @@
 
   function install() {
     const originalPopulateBrands = window.populateBrands;
+    baseVehicleFitmentStatus = window.vehicleFitmentStatus;
     const originalPopulateModels = window.populateModels;
 
     // Функции объявлены как глобальные function declarations в app.js,
