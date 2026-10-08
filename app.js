@@ -800,7 +800,7 @@ function populateCarFilters() {
   }
 
   populateYears(baseRows, false);
-  populateVolumes(byEngine);
+  populateVolumes(byEngine, false);
 }
 function populateEngines() { populateCarFilters(); }
 
@@ -1755,10 +1755,41 @@ $("#brand").onchange=()=>{
 $("#model").onchange=()=>{
   populateCarFilters();
 };
-$("#year").onchange=()=>{ populateCarFilters(); };
-$("#engine").onchange=()=>{ populateCarFilters(); };
-$("#volume").onchange=()=>{ populateCarFilters(); };
-$("#fuel").onchange=()=>{ populateCarFilters(); };
+$("#year").onchange=()=>{
+  const value = String($("#year")?.value || "");
+  populateCarFilters();
+  if (value && [...($("#year")?.options || [])].some(o => o.value === value)) {
+    $("#year").value = value;
+  }
+};
+$("#engine").onchange=()=>{
+  const value = String($("#engine")?.value || "");
+  populateCarFilters();
+  if (value && [...($("#engine")?.options || [])].some(o => o.value === value)) {
+    $("#engine").value = value;
+  }
+};
+$("#volume").onchange=()=>{
+  const value = String($("#volume")?.value || "");
+  populateCarFilters();
+  if (value && [...($("#volume")?.options || [])].some(o => o.value === value)) {
+    $("#volume").value = value;
+  }
+};
+$("#fuel").onchange=()=>{
+  const value = String($("#fuel")?.value || "");
+  populateCarFilters();
+  if (value && [...($("#fuel")?.options || [])].some(o => o.value === value)) {
+    $("#fuel").value = value;
+  }
+};
+$("#body").onchange=()=>{
+  const value = String($("#body")?.value || "");
+  populateCarFilters();
+  if (value && [...($("#body")?.options || [])].some(o => o.value === value)) {
+    $("#body").value = value;
+  }
+};
 
 $("#partTypeFilter").onchange=()=>{
   activePartType = String($("#partTypeFilter")?.value || "");
@@ -1994,7 +2025,18 @@ function modelTemplatesForBrand(brand) {
     });
   });
 
-  return [...groups.values()].sort((a, b) =>
+  // Разные записи прайса могут описывать одну и ту же модель разными
+  // исходными строками. Для интерфейса оставляем только один видимый вариант.
+  const byLabel = new Map();
+  for (const item of groups.values()) {
+    const labelKey = norm(item.label);
+    const current = byLabel.get(labelKey);
+    if (!current || modelTemplateScore(item.raw) < modelTemplateScore(current.raw)) {
+      byLabel.set(labelKey, item);
+    }
+  }
+
+  return [...byLabel.values()].sort((a, b) =>
     a.label.localeCompare(b.label, "ru", { numeric: true, sensitivity: "base" })
   );
 }
