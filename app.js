@@ -832,7 +832,7 @@ function populateCarFilters(changedIndex = 0) {
     if (bt) bodies.add(bt);
   });
 
-  if (engineEl) {
+  if (changedIndex <= 1 && engineEl) {
     engineEl.innerHTML =
       '<option value="">Двигатель — любой</option>' +
       [...engines]
