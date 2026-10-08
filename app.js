@@ -1274,7 +1274,7 @@ function render(
    ПОИСК
 ========================= */
 
-function searchParts(q) {
+async function searchParts(q) {
 
   const query = String(q || "").trim();
 
