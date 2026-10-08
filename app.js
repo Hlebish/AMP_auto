@@ -729,47 +729,66 @@ function populateVolumes(rows, resetValue = true) {
 }
 
 function populateCarFilters() {
-  const baseRows = currentCarBase();
-  const selectedYear = String($("#year")?.value || "").trim();
-  const selectedEngine = String($("#engine")?.value || "").trim();
-  const selectedVolume = String($("#volume")?.value || "").trim();
-  const selectedFuel = String($("#fuel")?.value || "").trim();
-  const selectedBody = String($("#body")?.value || "").trim();
+  // Сохраняем ВСЕ текущие значения до перестройки select'ов.
+  // Иначе выбор следующего фильтра может сбросить предыдущий.
+  const selected = {
+    year: String($("#year")?.value || "").trim(),
+    engine: String($("#engine")?.value || "").trim(),
+    volume: String($("#volume")?.value || "").trim(),
+    fuel: String($("#fuel")?.value || "").trim(),
+    body: String($("#body")?.value || "").trim()
+  };
 
-  const byYear = selectedYear
+  const baseRows = currentCarBase();
+
+  const byYear = selected.year
     ? baseRows.filter(x => {
         const ranges = extractYears(x);
-        return !ranges.length || yearMatches(x, selectedYear);
+        return !ranges.length || yearMatches(x, selected.year);
       })
     : baseRows;
 
-  const byEngine = selectedEngine
-    ? byYear.filter(x => !String(x.engine || "").trim() || hasValue(x.engine, selectedEngine))
+  const byEngine = selected.engine
+    ? byYear.filter(x =>
+        !String(x.engine || "").trim() ||
+        hasValue(x.engine, selected.engine)
+      )
     : byYear;
 
-  const byVolume = selectedVolume
-    ? byEngine.filter(x => !engineVolumes(x).length || volumeMatches(x, selectedVolume))
+  const byVolume = selected.volume
+    ? byEngine.filter(x =>
+        !engineVolumes(x).length ||
+        volumeMatches(x, selected.volume)
+      )
     : byEngine;
 
-  const byFuel = selectedFuel
+  const byFuel = selected.fuel
     ? byVolume.filter(x => {
         const detected = fuelType(x);
-        return !detected || detected === selectedFuel;
+        return !detected || detected === selected.fuel;
       })
     : byVolume;
 
   const engineEl = $("#engine");
   const fuelEl = $("#fuel");
   const bodyEl = $("#body");
-  const engines = new Set(), fuels = new Set(), bodies = new Set();
+
+  const engines = new Set();
+  const fuels = new Set();
+  const bodies = new Set();
 
   byYear.forEach(x => {
-    splitValues(x.engine).forEach(v => engines.add(v));
+    splitValues(x.engine).forEach(v => {
+      const value = String(v || "").trim();
+      if (value) engines.add(value);
+    });
   });
+
   byVolume.forEach(x => {
     const f = fuelType(x);
     if (f) fuels.add(f);
   });
+
   byFuel.forEach(x => {
     const bt = bodyType(x);
     if (bt) bodies.add(bt);
@@ -778,29 +797,60 @@ function populateCarFilters() {
   if (engineEl) {
     engineEl.innerHTML =
       '<option value="">Двигатель — любой</option>' +
-      [...engines].sort((a,b)=>a.localeCompare(b,"ru")).slice(0,500)
-        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
-    if (selectedEngine && [...engineEl.options].some(o => o.value === selectedEngine)) engineEl.value = selectedEngine;
+      [...engines]
+        .sort((a,b) => a.localeCompare(b,"ru"))
+        .slice(0,500)
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        ).join("");
   }
 
   if (fuelEl) {
     fuelEl.innerHTML =
       '<option value="">Топливо — любое</option>' +
-      [...fuels].sort((a,b)=>a.localeCompare(b,"ru"))
-        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
-    if (selectedFuel && [...fuelEl.options].some(o => o.value === selectedFuel)) fuelEl.value = selectedFuel;
+      [...fuels]
+        .sort((a,b) => a.localeCompare(b,"ru"))
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        ).join("");
   }
 
   if (bodyEl) {
     bodyEl.innerHTML =
       '<option value="">Кузов — любой</option>' +
-      [...bodies].sort((a,b)=>a.localeCompare(b,"ru"))
-        .map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join("");
-    if (selectedBody && [...bodyEl.options].some(o => o.value === selectedBody)) bodyEl.value = selectedBody;
+      [...bodies]
+        .sort((a,b) => a.localeCompare(b,"ru"))
+        .map(v =>
+          '<option value="' + escapeHtml(v) + '">' +
+          escapeHtml(v) +
+          '</option>'
+        ).join("");
   }
 
+  // Сначала строим год и объём.
   populateYears(baseRows, false);
   populateVolumes(byEngine, false);
+
+  // После полной перестройки восстанавливаем ВСЕ выбранные значения.
+  // Значение восстанавливаем только если оно действительно есть
+  // среди актуальных вариантов.
+  const restore = (selector, value) => {
+    const el = $(selector);
+    if (!el || !value) return;
+
+    const option = [...el.options].find(o => o.value === value);
+    if (option) el.value = value;
+  };
+
+  restore("#year", selected.year);
+  restore("#engine", selected.engine);
+  restore("#volume", selected.volume);
+  restore("#fuel", selected.fuel);
+  restore("#body", selected.body);
 }
 function populateEngines() { populateCarFilters(); }
 
