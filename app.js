@@ -398,7 +398,7 @@ function extractYears(item) {
     let m;
     while ((m = rangeRe.exec(value))) {
       const from = Number(m[1]);
-      const to = m[2] ? Number(m[2]) : 2035;
+      const to = m[2] ? Number(m[2]) : null;
       ranges.push({from, to});
     }
 
@@ -406,7 +406,7 @@ function extractYears(item) {
     const shortRangeRe = /\b(0?[1-9]|1[0-2])\.(\d{2})\s*[-–—]\s*(?:(0?[1-9]|1[0-2])\.(\d{2}))?/g;
     while ((m = shortRangeRe.exec(value))) {
       const from = 2000 + Number(m[2]);
-      const to = m[4] ? 2000 + Number(m[4]) : 2035;
+      const to = m[4] ? 2000 + Number(m[4]) : null;
       ranges.push({from, to});
     }
 
@@ -677,8 +677,10 @@ function populateYears(rows, resetValue = true) {
       // 2035 используется внутри extractYears() как техническая
       // граница для записей вида "2010-". В выпадающем списке
       // технические годы показывать нельзя: максимум — текущий год.
-      const rawTo = Number(r.to || r.from) || from;
-      const to = Math.min(currentYear, rawTo);
+      const rawTo = Number(r.to);
+      // Открытый диапазон "2010-" означает действительность до текущего года,
+      // а не до искусственной верхней границы.
+      const to = Number.isFinite(rawTo) ? Math.min(currentYear, rawTo) : currentYear;
 
       if (to < from) return;
       for (let y = from; y <= to; y++) years.add(y);
@@ -3025,9 +3027,6 @@ $("#brand").onchange=()=>{
 $("#model").onchange=()=>{
   populateCarFilters();
 };
-$("#year").onchange=()=>{};
-$("#volume").onchange=()=>{};
-
 $("#partTypeFilter").onchange=()=>{
   activePartType = String($("#partTypeFilter")?.value || "");
   render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада");
