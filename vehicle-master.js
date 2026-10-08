@@ -86,7 +86,41 @@
     ].join("::");
   }
 
-  function parseProfileFromRow(row) {
+  // Строим доказательства связи БРЕНД -> МОДЕЛЬ только по строкам,
+  // где указана ровно одна марка. Строка вида "MITSUBISHI,SMART" не
+  // означает, что каждая модель из списка относится к обеим маркам.
+  // Именно такое декартово сопоставление раньше порождало ложные ветки
+  // вроде MAZDA -> Santa Fe.
+  function buildBrandModelEvidence(rows) {
+    const evidence = new Map();
+
+    for (const row of rows || []) {
+      const brands = typeof splitValues === "function"
+        ? splitValues(row?.marks)
+        : clean(row?.marks).split(/[,;|]+/);
+      const normalizedBrands = unique(brands.map(keyNorm).filter(Boolean));
+      if (normalizedBrands.length !== 1) continue;
+
+      const brandKey = normalizedBrands[0];
+      const models = typeof splitValues === "function"
+        ? splitValues(row?.models)
+        : clean(row?.models).split(/[,;|]+/);
+
+      if (!evidence.has(brandKey)) evidence.set(brandKey, new Set());
+      const set = evidence.get(brandKey);
+
+      for (const rawModel of models) {
+        const family = modelFamilyName(rawModel);
+        if (!family) continue;
+        const codes = generationCodes(rawModel);
+        set.add(modelKey(brandKey, family, codes));
+      }
+    }
+
+    return evidence;
+  }
+
+  function parseProfileFromRow(row, brandEvidence) {
     const brands = typeof splitValues === "function"
       ? splitValues(row?.marks)
       : clean(row?.marks).split(/[,;|]+/);
@@ -95,13 +129,28 @@
       ? splitValues(row?.models)
       : clean(row?.models).split(/[,;|]+/);
 
+    const normalizedBrands = unique(brands.map(keyNorm).filter(Boolean));
     const result = [];
 
     for (const brandRaw of brands) {
       const brand = clean(brandRaw);
-      if (!brand) continue;
+      const brandKey = keyNorm(brand);
+      if (!brand || !brandKey) continue;
 
-      for (const modelRaw of models) {
+      // Однозначная строка: все модели принадлежат этой единственной марке.
+      // Мультибрендовая строка: берём только те модели/поколения, которые
+      // уже подтверждены отдельными однобрендовыми строками.
+      const allowedModels = normalizedBrands.length === 1
+        ? models
+        : models.filter(modelRaw => {
+            const family = modelFamilyName(modelRaw);
+            const codes = generationCodes(modelRaw);
+            const evidence = brandEvidence?.get(brandKey);
+            if (!evidence || !family) return false;
+            return evidence.has(modelKey(brandKey, family, codes));
+          });
+
+      for (const modelRaw of allowedModels) {
         const model = clean(modelRaw);
         if (!model) continue;
 
@@ -109,7 +158,7 @@
         if (!family) continue;
 
         const codes = generationCodes(model);
-        const years = typeof extractYears === "function"
+        let years = typeof extractYears === "function"
           ? extractYears(row).flatMap(r => {
               const from = Number(r?.from);
               const to = Number(r?.to ?? r?.from);
@@ -123,6 +172,21 @@
               return values;
             })
           : [];
+
+        // Для Mazda CX-7 (ER) в части товарных строк год отсутствует.
+        // Официальные материалы Mazda указывают выпуск CX-7 с конца 2006
+        // до 2011 года; для aftermarket-подбора используем календарный
+        // модельный диапазон 2006–2012, согласованный с текущими данными
+        // каталога и существующим UI fallback.
+        if (
+          keyNorm(brand) === "mazda" &&
+          keyNorm(family) === "cx 7" &&
+          codes.some(code => keyNorm(code) === "er")
+        ) {
+          years = unique([...years, ...Array.from({length: 7}, (_, i) => 2006 + i)])
+            .map(Number)
+            .sort((a, b) => b - a);
+        }
 
         const engines = typeof splitValues === "function"
           ? splitValues(row?.engine)
@@ -155,9 +219,10 @@
 
   function mergeProfiles(rows) {
     const map = new Map();
+    const brandEvidence = buildBrandModelEvidence(rows);
 
     for (const row of rows || []) {
-      for (const profile of parseProfileFromRow(row)) {
+      for (const profile of parseProfileFromRow(row, brandEvidence)) {
         const existing = map.get(profile.key);
 
         if (!existing) {
