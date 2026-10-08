@@ -667,16 +667,27 @@ function populateYears(rows, resetValue = true) {
 
   const current = resetValue ? "" : String(el.value || "");
   const years = new Set();
+  const currentYear = new Date().getFullYear();
 
   rows.forEach(item => {
     extractYears(item).forEach(r => {
       const from = Math.max(1950, Number(r.from) || 0);
-      const to = Math.min(2035, Number(r.to || r.from) || from);
+      if (!Number.isFinite(from) || from > currentYear) return;
+
+      // 2035 используется внутри extractYears() как техническая
+      // граница для записей вида "2010-". В выпадающем списке
+      // технические годы показывать нельзя: максимум — текущий год.
+      const rawTo = Number(r.to || r.from) || from;
+      const to = Math.min(currentYear, rawTo);
+
+      if (to < from) return;
       for (let y = from; y <= to; y++) years.add(y);
     });
   });
 
-  const values = [...years].sort((a, b) => b - a);
+  const values = [...years]
+    .filter(y => y >= 1950 && y <= currentYear)
+    .sort((a, b) => b - a);
 
   el.innerHTML =
     '<option value="">Год — любой</option>' +
