@@ -304,11 +304,106 @@
     });
   }
 
+  // Человекочитаемое отображение названий автомобиля.
+  // Источник прайса часто приходит в UPPERCASE или lowercase, но это
+  // не должно протекать в UI. Значения в option.value остаются исходными,
+  // меняем только текст, который видит пользователь.
+  const BRAND_DISPLAY = new Map([
+    ["audi", "Audi"], ["bmw", "BMW"], ["mercedes", "Mercedes-Benz"],
+    ["mercedes benz", "Mercedes-Benz"], ["mercedes-benz", "Mercedes-Benz"],
+    ["volkswagen", "Volkswagen"], ["vw", "Volkswagen"], ["skoda", "Skoda"],
+    ["seat", "SEAT"], ["opel", "Opel"], ["ford", "Ford"],
+    ["mazda", "Mazda"], ["toyota", "Toyota"], ["lexus", "Lexus"],
+    ["honda", "Honda"], ["nissan", "Nissan"], ["infiniti", "Infiniti"],
+    ["mitsubishi", "Mitsubishi"], ["subaru", "Subaru"], ["suzuki", "Suzuki"],
+    ["hyundai", "Hyundai"], ["kia", "Kia"], ["genesis", "Genesis"],
+    ["renault", "Renault"], ["dacia", "Dacia"], ["peugeot", "Peugeot"],
+    ["citroen", "Citroen"], ["ds", "DS"], ["fiat", "Fiat"],
+    ["alfa romeo", "Alfa Romeo"], ["jaguar", "Jaguar"], ["land rover", "Land Rover"],
+    ["volvo", "Volvo"], ["saab", "Saab"], ["porsche", "Porsche"],
+    ["jeep", "Jeep"], ["chrysler", "Chrysler"], ["dodge", "Dodge"],
+    ["cadillac", "Cadillac"], ["chevrolet", "Chevrolet"], ["tesla", "Tesla"],
+    ["lada", "Lada"], ["gaz", "GAZ"], ["uaz", "UAZ"], ["zaz", "ZAZ"],
+    ["smart", "Smart"], ["mini", "MINI"], ["daewoo", "Daewoo"],
+    ["ssangyong", "SsangYong"], ["byd", "BYD"], ["chery", "Chery"],
+    ["geely", "Geely"], ["jac", "JAC"], ["great wall", "Great Wall"],
+    ["haval", "Haval"], ["mg", "MG"], ["isuzu", "Isuzu"], ["iveco", "Iveco"]
+  ]);
+
+  function displayBrand(value) {
+    const raw = clean(value);
+    if (!raw) return "";
+    const key = keyNorm(raw);
+    if (BRAND_DISPLAY.has(key)) return BRAND_DISPLAY.get(key);
+
+    // Для редких/новых марок: нормальный регистр вместо КАПСА.
+    return raw.toLocaleLowerCase("ru-RU").replace(/(^|[\\s-])([a-zа-яіїєґ])/g, (_, p, c) => p + c.toLocaleUpperCase("ru-RU"));
+  }
+
+  const MODEL_WORDS = new Map([
+    ["fe", "Fe"], ["e tron", "e-tron"], ["e-tron", "e-tron"],
+    ["i3", "i3"], ["i4", "i4"], ["i5", "i5"], ["i7", "i7"], ["ix", "iX"],
+    ["ix1", "iX1"], ["ix3", "iX3"], ["ix5", "iX5"], ["ix6", "iX6"], ["ix7", "iX7"],
+    ["cx-3", "CX-3"], ["cx-30", "CX-30"], ["cx-5", "CX-5"], ["cx-7", "CX-7"], ["cx-8", "CX-8"], ["cx-9", "CX-9"], ["cx-60", "CX-60"], ["cx-70", "CX-70"], ["cx-80", "CX-80"], ["cx-90", "CX-90"],
+    ["mx-5", "MX-5"], ["rx-7", "RX-7"], ["rx-8", "RX-8"],
+    ["s-max", "S-Max"], ["c-max", "C-Max"], ["b-max", "B-Max"], ["grand c-max", "Grand C-Max"],
+    ["c-hr", "C-HR"], ["rav4", "RAV4"], ["cr-v", "CR-V"], ["hr-v", "HR-V"],
+    ["x-trail", "X-Trail"], ["qashqai", "Qashqai"], ["land cruiser", "Land Cruiser"],
+    ["range rover", "Range Rover"], ["discovery", "Discovery"], ["defender", "Defender"],
+    ["sprinter", "Sprinter"], ["transporter", "Transporter"], ["multivan", "Multivan"],
+    ["golf", "Golf"], ["passat", "Passat"], ["polo", "Polo"], ["tiguan", "Tiguan"],
+    ["touareg", "Touareg"], ["caddy", "Caddy"], ["touran", "Touran"],
+    ["santa fe", "Santa Fe"], ["grand santa fe", "Grand Santa Fe"], ["i20", "i20"], ["i30", "i30"], ["i40", "i40"],
+    ["ceed", "Ceed"], ["sorento", "Sorento"], ["sportage", "Sportage"], ["rio", "Rio"],
+    ["logan", "Logan"], ["sandero", "Sandero"], ["megane", "Megane"], ["clio", "Clio"], ["captur", "Captur"], ["duster", "Duster"],
+    ["octavia", "Octavia"], ["fabia", "Fabia"], ["superb", "Superb"], ["kodiaq", "Kodiaq"], ["karoq", "Karoq"],
+    ["focus", "Focus"], ["fiesta", "Fiesta"], ["mondeo", "Mondeo"], ["kuga", "Kuga"], ["explorer", "Explorer"], ["mustang", "Mustang"],
+    ["corolla", "Corolla"], ["camry", "Camry"], ["yaris", "Yaris"], ["auris", "Auris"], ["avensis", "Avensis"], ["prius", "Prius"],
+    ["civic", "Civic"], ["accord", "Accord"], ["cr-v", "CR-V"], ["jazz", "Jazz"],
+    ["golf", "Golf"], ["astra", "Astra"], ["corsa", "Corsa"], ["insignia", "Insignia"]
+  ]);
+
+  function displayModel(value) {
+    const raw = clean(value);
+    if (!raw) return "";
+
+    const codeMatch = raw.match(/\\(([^)]{1,80})\\)\\s*$/);
+    const code = codeMatch ? codeMatch[1].trim() : "";
+    let family = codeMatch ? raw.slice(0, codeMatch.index).trim() : raw;
+
+    family = family.toLocaleLowerCase("en-US")
+      .replace(/\\s+/g, " ")
+      .split(" ")
+      .map((token, index) => {
+        const key = token.toLowerCase();
+        if (MODEL_WORDS.has(key)) return MODEL_WORDS.get(key);
+        if (/^\\d+$/.test(token)) return token;
+        if (/^[ivxlcdm]+$/i.test(token)) return token.toUpperCase();
+        if (/^[a-z]+\\d+[a-z0-9-]*$/i.test(token)) {
+          // CX5 / X3 / i30 и подобные.
+          const m = token.match(/^([a-z]+)(\\d.*)$/i);
+          if (m) return m[1].toUpperCase() + m[2];
+        }
+        return token.charAt(0).toLocaleUpperCase("ru-RU") + token.slice(1);
+      })
+      .join(" ");
+
+    // Если код поколения есть в скобках — это технический индекс, он всегда
+    // отображается капсом: (SN), (SM), (ER), (G01), (C307).
+    if (code) {
+      const prettyCode = code.split(/[,/;|]+/).map(part => part.trim().toUpperCase()).filter(Boolean).join(", ");
+      return family + " (" + prettyCode + ")";
+    }
+
+    return family;
+  }
+
   function profileLabel(profile) {
+    const family = displayModel(profile.family);
     const codes = unique(profile.codes);
     return codes.length
-      ? profile.family + " (" + codes.join(", ") + ")"
-      : profile.family;
+      ? family + " (" + codes.map(code => String(code).toUpperCase()).join(", ") + ")"
+      : family;
   }
 
   function profileHasFilter(profile, filters = {}) {
@@ -398,7 +493,7 @@
         .map(profile => profile.brand)
     ).sort((a, b) => a.localeCompare(b, "ru"));
 
-    setOptions(el, "Марка", brands.map(v => v.toUpperCase()));
+    setOptions(el, "Марка", brands.map(displayBrand));
 
     if (current && [...el.options].some(o => keyNorm(o.value) === keyNorm(current))) {
       el.value = current;
@@ -422,7 +517,7 @@
       if (!groups.has(key)) {
         groups.set(key, {
           raw: label,
-          label,
+          label: displayModel(label),
           family: profile.family,
           codes: profile.codes,
           key
