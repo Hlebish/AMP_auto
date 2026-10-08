@@ -436,8 +436,27 @@ function yearMatches(item,wanted) {
 }
 
 function engineVolumes(item) {
-  return [...String(item.engine||"").matchAll(/(?<!\d)(\d+(?:[.,]\d+)?)\s*(?:L|л)\b/gi)]
-    .map(m=>Number(String(m[1]).replace(",","."))).filter(Number.isFinite);
+  const text = String(item?.engine || "");
+  const values = [];
+
+  // Основной формат: "2.3 L", "2.0 л".
+  for (const m of text.matchAll(/(?<!\d)(\d+(?:[.,]\d+)?)\s*(?:L|л)\b/gi)) {
+    const value = Number(String(m[1]).replace(",", "."));
+    if (Number.isFinite(value) && value > 0 && value <= 20) values.push(value);
+  }
+
+  // В прайсе двигателя также встречается формат без L:
+  // "2.3 MZR", "2.5 MZR", "2.3 MZR DISI Turbo".
+  // Здесь ищем только реалистичный объём двигателя, чтобы не принимать
+  // года/коды деталей за литраж.
+  if (!values.length) {
+    for (const m of text.matchAll(/(?<!\d)(\d+(?:[.,]\d+)?)(?=\s*(?:MZR|DISI|TFSI|TSI|MPI|FSI|GDI|CRDI|CDI|dCi|Turbo|AWD)\b)/gi)) {
+      const value = Number(String(m[1]).replace(",", "."));
+      if (Number.isFinite(value) && value >= 0.6 && value <= 10) values.push(value);
+    }
+  }
+
+  return [...new Set(values)];
 }
 
 function volumeMatches(item,wanted) {
@@ -458,16 +477,35 @@ function fuelType(item) {
 }
 
 function bodyType(item) {
-  const text=norm(String(item.models||"")+" "+String(item.name||""));
-  if (/sedan|седан/.test(text)) return "Седан";
-  if (/wagon|station wagon|universal|универсал/.test(text)) return "Универсал";
-  if (/hatchback|хетчбек|хэтчбек/.test(text)) return "Хэтчбек";
-  if (/suv|crossover|кроссовер/.test(text)) return "SUV";
+  const text = norm(
+    String(item?.models || "") + " " +
+    String(item?.name || "") + " " +
+    String(item?.description || "")
+  );
+
+  if (/sedan|saloon|седан/.test(text)) return "Седан";
+  if (/wagon|station wagon|estate|universal|универсал/.test(text)) return "Универсал";
+  if (/hatchback|hatch|хетчбек|хэтчбек/.test(text)) return "Хэтчбек";
+  if (/suv|crossover|кроссовер|внедорож/.test(text)) return "SUV";
   if (/coupe|купе/.test(text)) return "Купе";
-  if (/cabrio|convertible|кабрио/.test(text)) return "Кабриолет";
+  if (/cabrio|convertible|кабрио|кабриолет/.test(text)) return "Кабриолет";
   if (/van|фургон/.test(text)) return "Фургон";
-  if (/mpv|минивен/.test(text)) return "Минивэн";
+  if (/mpv|minivan|минивен/.test(text)) return "Минивэн";
   if (/pickup|пикап/.test(text)) return "Пикап";
+
+  // В каталоге AMP Auto кузов часто вообще не записан в строке товара.
+  // Тогда определяем его по семейству модели.
+  const model = norm(String(item?.models || "") + " " + String(item?.name || ""));
+
+  // Mazda CX — кроссоверы/SUV.
+  if (/\bcx\s*[- ]?[0-9]+\b/.test(model)) return "SUV";
+
+  // BMW X-серия.
+  if (/\bx[0-9]+\b/.test(model) && /\bbmw\b/.test(model)) return "SUV";
+
+  // Mercedes SUV-линейка.
+  if (/\b(gl|gle|glk|gla|glc|gls|g)\b/.test(model) && /\bmercedes\b/.test(model)) return "SUV";
+
   return "";
 }
 
