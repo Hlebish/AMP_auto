@@ -287,21 +287,48 @@
     return master.byBrand.get(keyNorm(brand)) || [];
   }
 
+  function comparisonFamily(value, codes = []) {
+    let tokens = keyNorm(value).split(/\\s+/).filter(Boolean);
+    const codeKeys = new Set((codes || []).map(keyNorm).filter(Boolean));
+    tokens = tokens.filter(token => !codeKeys.has(token));
+    return tokens.join(" ");
+  }
+
   function getModelProfiles(brand, model) {
     const brandProfiles = getBrandProfiles(brand);
-    const targetFamily = typeof modelFamily === "function"
+    const requestedCodes = generationCodes(model);
+    const rawTargetFamily = typeof modelFamily === "function"
       ? modelFamily(model)
       : modelFamilyName(model);
 
-    return brandProfiles.filter(profile => {
-      const familyEqual = keyNorm(profile.family) === keyNorm(targetFamily);
-      if (!familyEqual) return false;
+    const targetFamily = comparisonFamily(rawTargetFamily, requestedCodes);
 
-      const requestedCodes = generationCodes(model);
+    const matches = brandProfiles.filter(profile => {
+      const profileCodes = profile.codes || [];
+      const profileFamily = comparisonFamily(profile.family, profileCodes);
+      const a = keyNorm(profileFamily);
+      const b = keyNorm(targetFamily);
+      const familyEqual = a === b || a.includes(b) || b.includes(a);
+
+      if (!familyEqual) return false;
       if (!requestedCodes.length) return true;
 
-      return requestedCodes.some(code => profile.codes.includes(code));
+      return requestedCodes.some(code =>
+        profileCodes.some(profileCode => keyNorm(profileCode) === keyNorm(code))
+      );
     });
+
+    // Если исходная строка записала поколение прямо в названии модели,
+    // код поколения всё равно остаётся надёжным идентификатором.
+    if (!matches.length && requestedCodes.length) {
+      return brandProfiles.filter(profile =>
+        requestedCodes.some(code =>
+          (profile.codes || []).some(profileCode => keyNorm(profileCode) === keyNorm(code))
+        )
+      );
+    }
+
+    return matches;
   }
 
   // Человекочитаемое отображение названий автомобиля.
@@ -372,6 +399,11 @@
     let family = codeMatch ? raw.slice(0, codeMatch.index).trim() : raw;
 
     family = family.toLocaleLowerCase("en-US")
+      .replace(/\\bcx\\s*[- ]?([0-9]+)\\b/gi, "CX-$1")
+      .replace(/\\bmx\\s*[- ]?([0-9]+)\\b/gi, "MX-$1")
+      .replace(/\\brx\\s*[- ]?([0-9]+)\\b/gi, "RX-$1")
+      .replace(/\\bs\\s*[- ]?max\\b/gi, "S-Max")
+      .replace(/\\bc\\s*[- ]?max\\b/gi, "C-Max")
       .replace(/\\s+/g, " ")
       .split(" ")
       .map((token, index) => {
@@ -516,7 +548,8 @@
 
       if (!groups.has(key)) {
         groups.set(key, {
-          raw: label,
+          // Value хранит стабильное имя профиля, отображение отдельно.
+          raw: profile.family + (profile.codes?.length ? " (" + profile.codes.join(", ") + ")" : ""),
           label: displayModel(label),
           family: profile.family,
           codes: profile.codes,
