@@ -845,7 +845,7 @@ function populateCarFilters(changedIndex = 0) {
         ).join("");
   }
 
-  if (fuelEl) {
+  if (changedIndex <= 3 && fuelEl) {
     fuelEl.innerHTML =
       '<option value="">Топливо — любое</option>' +
       [...fuels]
@@ -857,7 +857,7 @@ function populateCarFilters(changedIndex = 0) {
         ).join("");
   }
 
-  if (bodyEl) {
+  if (changedIndex <= 4 && bodyEl) {
     bodyEl.innerHTML =
       '<option value="">Кузов — любой</option>' +
       [...bodies]
@@ -1866,14 +1866,14 @@ $("#volume").onchange=()=>{
 };
 $("#fuel").onchange=()=>{
   const value = String($("#fuel")?.value || "");
-  populateCarFilters();
+  populateCarFilters(4);
   if (value && [...($("#fuel")?.options || [])].some(o => o.value === value)) {
     $("#fuel").value = value;
   }
 };
 $("#body").onchange=()=>{
   const value = String($("#body")?.value || "");
-  populateCarFilters();
+  populateCarFilters(5);
   if (value && [...($("#body")?.options || [])].some(o => o.value === value)) {
     $("#body").value = value;
   }
@@ -2316,123 +2316,6 @@ function populateModels(resetValue = true) {
 
   populateCarFilters();
 }
-function populateYears(rows, resetValue = true) {
-  const el = $("#year");
-  if (!el) return;
-
-  const current = resetValue ? "" : String(el.value || "");
-  const years = new Set();
-
-  rows.forEach(item => {
-    extractYears(item).forEach(r => {
-      const from = Math.max(1950, Number(r.from) || 0);
-      const to = Math.min(2035, Number(r.to || r.from) || from);
-      for (let y = from; y <= to; y++) years.add(y);
-    });
-  });
-
-  const values = [...years].sort((a, b) => b - a);
-
-  el.innerHTML =
-    '<option value="">Год — любой</option>' +
-    values.map(y => '<option value="' + y + '">' + y + '</option>').join("");
-
-  if (current && values.includes(Number(current))) {
-    el.value = current;
-  } else {
-    el.value = "";
-  }
-}
-
-function populateVolumes(rows, resetValue = true) {
-  const el = $("#volume");
-  if (!el) return;
-
-  const current = resetValue ? "" : String(el.value || "");
-  const values = [...new Set(
-    rows.flatMap(engineVolumes)
-      .map(v => Number(v))
-      .filter(Number.isFinite)
-  )].sort((a, b) => a - b);
-
-  el.innerHTML =
-    '<option value="">Объём — любой</option>' +
-    values.map(v =>
-      '<option value="' + v + '">' +
-      v.toLocaleString("ru-RU", { maximumFractionDigits: 2 }) +
-      " л</option>"
-    ).join("");
-
-  if (current && values.some(v => Math.abs(v - Number(current)) < 0.001)) {
-    el.value = current;
-  } else {
-    el.value = "";
-  }
-}
-
-function populateCarFilters() {
-  const rows = currentCarBase();
-  const engineEl = $("#engine");
-  const fuelEl = $("#fuel");
-  const bodyEl = $("#body");
-
-  const engines = new Set();
-  const fuels = new Set();
-  const bodies = new Set();
-
-  rows.forEach(x => {
-    splitValues(x.engine).forEach(v => engines.add(v));
-    const f = fuelType(x);
-    const b = bodyType(x);
-    if (f) fuels.add(f);
-    if (b) bodies.add(b);
-  });
-
-  if (engineEl) {
-    engineEl.innerHTML =
-      '<option value="">Двигатель — любой</option>' +
-      [...engines]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .slice(0, 500)
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
-  }
-
-  if (fuelEl) {
-    fuelEl.innerHTML =
-      '<option value="">Топливо — любое</option>' +
-      [...fuels]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
-  }
-
-  if (bodyEl) {
-    bodyEl.innerHTML =
-      '<option value="">Кузов — любой</option>' +
-      [...bodies]
-        .sort((a, b) => a.localeCompare(b, "ru"))
-        .map(v =>
-          '<option value="' + escapeHtml(v) + '">' +
-          escapeHtml(v) +
-          '</option>'
-        )
-        .join("");
-  }
-
-  populateYears(rows);
-  populateVolumes(rows);
-}
-function populateEngines() { populateCarFilters(); }
-
 /* =========================
    ФИЛЬТР ПО ТИПУ ДЕТАЛИ
 ========================= */
@@ -3146,17 +3029,7 @@ function setMode(next) {
    EVENTS
 ========================= */
 
-$("#carBtn").onclick=searchCar;
-$("#articleSearchBtn").onclick=searchExactArticle;
-$("#articleSearchInput").addEventListener("keydown", event => {
-  if (event.key === "Enter") searchExactArticle();
-});
-$("#brand").onchange=()=>{
-  populateModels(true);
-};
-$("#model").onchange=()=>{
-  populateCarFilters();
-};
+
 $("#partTypeFilter").onchange=()=>{
   activePartType = String($("#partTypeFilter")?.value || "");
   render(lastRenderedList, $("#resultTitle")?.dataset.baseTitle || "Каталог склада");
