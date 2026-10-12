@@ -268,6 +268,7 @@
     }
 
     window.orderCatalog = orderCatalog;
+    updateCatalogCount();
     window.ampartsUnavailableCatalog = unavailableAmparts;
 
     // Индексируем только известные типы деталей. Это сильно ускоряет
@@ -408,9 +409,22 @@
     }
   }
 
+  function updateCatalogCount() {
+    const el = document.getElementById("catalogCount");
+    if (!el) return;
+    const stockCount = Array.isArray(catalog) ? catalog.length : 0;
+    const orderCount = Array.isArray(window.orderCatalog) ? window.orderCatalog.length : 0;
+    const total = stockCount + orderCount;
+    const fmt = value => Number(value || 0).toLocaleString("ru-RU");
+    el.textContent = "Загружено позиций: " + fmt(total) +
+      " (склад: " + fmt(stockCount) + "; под заказ: " + fmt(orderCount) + ")";
+    el.title = "Считаются загруженные строки каталога; складские и заказные позиции учитываются отдельно.";
+  }
+
   function installCatalog(rows, silent = false) {
     catalog = rows;
     window.currentCatalog = catalog;
+    updateCatalogCount();
 
     // Сразу фиксируем наши реальные AMParts-артикулы из склада.
     // Это нужно ещё до загрузки огромного прайса под заказ, чтобы кроссы
