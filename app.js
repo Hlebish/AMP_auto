@@ -1401,6 +1401,26 @@ async function searchCar() {
     loading?.setText("Ищем дополнительные варианты…");
     await new Promise(resolve => setTimeout(resolve, 0));
 
+    // Индексы складских позиций по собственному артикулу и OEM.
+    // Нужны для приоритетного сопоставления по номерам без повторного
+    // полного прохода по каталогу для каждой строки кроссов.
+    const stockRowsByArticle = new Map();
+    const stockRowsByOem = new Map();
+    const indexStockValue = (map, key, item) => {
+      const normalized = compact(key);
+      if (!normalized) return;
+      if (!map.has(normalized)) map.set(normalized, []);
+      map.get(normalized).push(item);
+    };
+    for (const item of catalog) {
+      if (qtyValue(item?.quantity) <= 0) continue;
+      if (item?._order || item?._unavailable) continue;
+      indexStockValue(stockRowsByArticle, item?.catalog_number, item);
+      String(item?.original_number || "")
+        .split(/[,;\\n]+/)
+        .forEach(oem => indexStockValue(stockRowsByOem, oem, item));
+    }
+
     const orderByArticle=new Map();
     if(Array.isArray(window.orderCatalog)){
       for(const item of window.orderCatalog){
@@ -1614,12 +1634,7 @@ async function searchCar() {
       // не теряем его: показываем как возможное совпадение, а не как заказной.
       // Если у артикула есть собственная привязка к автомобилю, но она не
       // прошла текущий подбор, не протаскиваем его через кросс.
-      const relatedStockRows = catalog.filter(item =>
-        compact(item?.catalog_number || "") === article &&
-        !item?._order &&
-        !item?._unavailable &&
-        qtyValue(item?.quantity) > 0
-      );
+      const relatedStockRows = stockRowsByArticle.get(article) || [];
       if (relatedStockRows.length) {
         const rowsWithFitment = relatedStockRows.filter(item =>
           String(item?.marks || "").trim() ||
@@ -1778,6 +1793,39 @@ async function searchCar() {
       render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
       lastPaintedOrderCount=orderList.length;
       await new Promise(resolve => setTimeout(resolve, 0));
+    }
+
+    // 1б. Второй проход по складским позициям без fitment-полей:
+    // сначала уже проверили кроссы/артикулы/OEM, теперь используем название
+    // и описание как резервный сигнал. Такие совпадения всегда помечаются
+    // как возможные и не подменяют точные совпадения по номерам.
+    const knownStockArticles = new Set([
+      ...stockList.map(item => compact(item?.catalog_number || "")),
+      ...possibleStock.map(item => compact(item?.catalog_number || ""))
+    ].filter(Boolean));
+    let nameFallbackAdded = 0;
+    for (let i = 0; i < catalog.length; i++) {
+      const item = catalog[i];
+      if (qtyValue(item?.quantity) <= 0 || item?._order || item?._unavailable) continue;
+      const article = compact(item?.catalog_number || "");
+      if (!article || knownStockArticles.has(article)) continue;
+      if (
+        String(item?.marks || "").trim() ||
+        String(item?.models || "").trim() ||
+        String(item?.engine || "").trim()
+      ) continue;
+
+      const status = orderFitmentStatus(item);
+      if (status !== "no") {
+        possibleStock.push({
+          ...item,
+          _possible: true,
+          _fitmentFromName: true
+        });
+        knownStockArticles.add(article);
+        nameFallbackAdded++;
+      }
+      if (i % 500 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     // 2. Прямой поиск по названию прайса.
