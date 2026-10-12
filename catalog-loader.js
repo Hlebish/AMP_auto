@@ -268,6 +268,7 @@
     }
 
     window.orderCatalog = orderCatalog;
+    orderCatalogLoaded = true;
     updateCatalogCount();
     window.ampartsUnavailableCatalog = unavailableAmparts;
 
@@ -409,6 +410,9 @@
     }
   }
 
+  let expectedOrderCount = 0;
+  let orderCatalogLoaded = false;
+
   function updateCatalogCount() {
     const el = document.getElementById("catalogCount");
     if (!el) return;
@@ -418,7 +422,14 @@
     const fmt = value => Number(value || 0).toLocaleString("ru-RU");
     el.textContent = "Загружено позиций: " + fmt(total) +
       " (склад: " + fmt(stockCount) + "; под заказ: " + fmt(orderCount) + ")";
-    el.title = "Считаются загруженные строки каталога; складские и заказные позиции учитываются отдельно.";
+    if (!orderCatalogLoaded && expectedOrderCount > 0) {
+      el.textContent += " · прайс под заказ: " + fmt(expectedOrderCount) + " (ещё не загружен)";
+      el.title = "В прайсе заявлено " + fmt(expectedOrderCount) + " строк. Они загрузятся при поиске; счётчик «под заказ» изменится после успешной загрузки.";
+    } else if (!orderCatalogLoaded && expectedOrderCount === 0) {
+      el.title = "Прайс под заказ ещё не загружен; ожидаем манифест.";
+    } else {
+      el.title = "Считаются загруженные строки каталога; складские и заказные позиции учитываются отдельно.";
+    }
   }
 
   function installCatalog(rows, silent = false) {
@@ -767,6 +778,15 @@
       } catch (e) {
         console.warn("AMP Auto lazy order catalog load:", e);
         window.orderReady = Promise.resolve(false);
+        const message = String(e?.message || e || "неизвестная ошибка");
+        if (typeof toast === "function") {
+          toast("⚠️ Не удалось загрузить прайс под заказ: " + message);
+        }
+        const countEl = document.getElementById("catalogCount");
+        if (countEl && expectedOrderCount > 0) {
+          countEl.title = "Прайс содержит " + Number(expectedOrderCount).toLocaleString("ru-RU") +
+            " строк по манифесту, но загрузка завершилась ошибкой: " + message;
+        }
         // Не запоминаем неудачную попытку навсегда: при временной сетевой
         // ошибке следующий поиск должен иметь возможность повторить загрузку.
         orderLoadPromise = null;
@@ -852,6 +872,8 @@
       ]);
       activeCrossManifest = crossManifest;
       activeOrderManifest = orderManifest;
+      expectedOrderCount = Number(orderManifest.count || 0);
+      updateCatalogCount();
 
       const cached = await useCache(manifest, crossManifest, orderManifest);
 
