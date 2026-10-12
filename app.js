@@ -1634,7 +1634,14 @@ async function searchCar() {
       // не теряем его: показываем как возможное совпадение, а не как заказной.
       // Если у артикула есть собственная привязка к автомобилю, но она не
       // прошла текущий подбор, не протаскиваем его через кросс.
-      const relatedStockRows = stockRowsByArticle.get(article) || [];
+      const relatedStockRows = [
+        ...(stockRowsByArticle.get(article) || []),
+        ...(stockRowsByOem.get(compact(row?.oem || contextOem)) || [])
+      ].filter((item, index, rows) =>
+        rows.findIndex(other =>
+          compact(other?.catalog_number || "") === compact(item?.catalog_number || "")
+        ) === index
+      );
       if (relatedStockRows.length) {
         const rowsWithFitment = relatedStockRows.filter(item =>
           String(item?.marks || "").trim() ||
