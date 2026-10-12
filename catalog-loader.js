@@ -767,6 +767,9 @@
       } catch (e) {
         console.warn("AMP Auto lazy order catalog load:", e);
         window.orderReady = Promise.resolve(false);
+        // Не запоминаем неудачную попытку навсегда: при временной сетевой
+        // ошибке следующий поиск должен иметь возможность повторить загрузку.
+        orderLoadPromise = null;
         return false;
       } finally {
         loading?.stop();
