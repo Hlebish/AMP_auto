@@ -3012,7 +3012,7 @@ async function searchCar() {
     let lastPaintedOrderCount=0;
     let processedStock=0;
     for(const stockItem of matched){
-      const oems=String(stockItem.original_number||"").split(",").map(v=>compact(v)).filter(Boolean);
+      const oems=String(stockItem.original_number||"").split(/[,;|\n]+/).map(v=>compact(v)).filter(Boolean);
       for(const oem of oems){
         const rows=window.crossData?.by_oem?.[oem]||[];
         for(const row of rows){
