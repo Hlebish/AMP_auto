@@ -3018,7 +3018,7 @@ async function searchCar() {
         for(const row of rows){
           addOrderItem(row, stockItem, oem);
           if(orderList.length - lastPaintedOrderCount >= 12){
-            render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
+            render([...stockList,...orderList], liveTitle, true);
             lastPaintedOrderCount=orderList.length;
             loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
             await new Promise(resolve => setTimeout(resolve, 0));
@@ -3032,7 +3032,7 @@ async function searchCar() {
     }
 
     if(orderList.length !== lastPaintedOrderCount){
-      render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
+      render([...stockList,...orderList], liveTitle, true);
       lastPaintedOrderCount=orderList.length;
       await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -3055,7 +3055,7 @@ async function searchCar() {
         }, null, "");
       }
       if(orderList.length - lastPaintedOrderCount >= 12){
-        render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
+        render([...stockList,...orderList], liveTitle, true);
         lastPaintedOrderCount=orderList.length;
         loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -3079,7 +3079,7 @@ async function searchCar() {
           }, null, item.original_number || "");
         }
         if(orderList.length - lastPaintedOrderCount >= 12){
-          render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
+          render([...stockList,...orderList], liveTitle, true);
           lastPaintedOrderCount=orderList.length;
           loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
           await new Promise(resolve => setTimeout(resolve, 0));
