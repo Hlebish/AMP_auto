@@ -1415,6 +1415,7 @@ async function searchCar() {
     // 1) через кроссы OEM/артикулов найденных деталей;
     // 2) напрямую по названию товара, если в нём явно указан бренд/модель.
     const orderList=[], possibleOrderList=[], seenOrder=new Set(), seenOwnUnavailable=new Set();
+    const seenCrossStockArticles = new Set();
 
     // Авторитетный набор ВСЕХ артикулов, которые реально есть на складе.
     // Проверяем его непосредственно перед добавлением заказной позиции,
@@ -1609,8 +1610,37 @@ async function searchCar() {
       }
       if(!article || seenOrder.has(article) || seenOwnUnavailable.has(article)) return;
 
-      // Если артикул уже есть на складе — не создаём ни заказную,
-      // ни "нет в наличии" карточку с тем же артикулом.
+      // Если кросс ведёт на складской артикул без собственных fitment-данных,
+      // не теряем его: показываем как возможное совпадение, а не как заказной.
+      // Если у артикула есть собственная привязка к автомобилю, но она не
+      // прошла текущий подбор, не протаскиваем его через кросс.
+      const relatedStockRows = catalog.filter(item =>
+        compact(item?.catalog_number || "") === article &&
+        !item?._order &&
+        !item?._unavailable &&
+        qtyValue(item?.quantity) > 0
+      );
+      if (relatedStockRows.length) {
+        const rowsWithFitment = relatedStockRows.filter(item =>
+          String(item?.marks || "").trim() ||
+          String(item?.models || "").trim() ||
+          String(item?.engine || "").trim()
+        );
+        if (rowsWithFitment.length) return;
+
+        if (!seenCrossStockArticles.has(article)) {
+          const candidate = relatedStockRows[0];
+          possibleStock.push({
+            ...candidate,
+            _possible: true,
+            _fitmentFromCross: true
+          });
+          seenCrossStockArticles.add(article);
+        }
+        return;
+      }
+
+      // Если артикул уже найден в основном результате, не дублируем его.
       if (
         stockCatalogArticles.has(article) ||
         ownStockArticles.has(article) ||
@@ -1732,7 +1762,7 @@ async function searchCar() {
         addOrderItem(row, null, row?.oem || seed);
 
         if (orderList.length - lastPaintedOrderCount >= 12) {
-          render([...stockList,...orderList], liveTitle, true);
+          render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
           lastPaintedOrderCount=orderList.length;
           loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
           await new Promise(resolve => setTimeout(resolve, 0));
@@ -1745,7 +1775,7 @@ async function searchCar() {
     }
 
     if(orderList.length !== lastPaintedOrderCount){
-      render([...stockList,...orderList], liveTitle, true);
+      render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
       lastPaintedOrderCount=orderList.length;
       await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -1769,7 +1799,7 @@ async function searchCar() {
         }, null, "", fitmentStatus === "possible");
       }
       if(orderList.length - lastPaintedOrderCount >= 12){
-        render([...stockList,...orderList], liveTitle, true);
+        render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
         lastPaintedOrderCount=orderList.length;
         loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -1794,7 +1824,7 @@ async function searchCar() {
           }, null, item.original_number || "", fitmentStatus === "possible");
         }
         if(orderList.length - lastPaintedOrderCount >= 12){
-          render([...stockList,...orderList], liveTitle, true);
+          render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
           lastPaintedOrderCount=orderList.length;
           loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
           await new Promise(resolve => setTimeout(resolve, 0));
@@ -2933,7 +2963,7 @@ async function searchCar() {
         for(const row of rows){
           addOrderItem(row, stockItem, oem);
           if(orderList.length - lastPaintedOrderCount >= 12){
-            render([...stockList,...orderList], liveTitle, true);
+            render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
             lastPaintedOrderCount=orderList.length;
             loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
             await new Promise(resolve => setTimeout(resolve, 0));
@@ -2947,7 +2977,7 @@ async function searchCar() {
     }
 
     if(orderList.length !== lastPaintedOrderCount){
-      render([...stockList,...orderList], liveTitle, true);
+      render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
       lastPaintedOrderCount=orderList.length;
       await new Promise(resolve => setTimeout(resolve, 0));
     }
@@ -2970,7 +3000,7 @@ async function searchCar() {
         }, null, "");
       }
       if(orderList.length - lastPaintedOrderCount >= 12){
-        render([...stockList,...orderList], liveTitle, true);
+        render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
         lastPaintedOrderCount=orderList.length;
         loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -2994,7 +3024,7 @@ async function searchCar() {
           }, null, item.original_number || "");
         }
         if(orderList.length - lastPaintedOrderCount >= 12){
-          render([...stockList,...orderList], liveTitle, true);
+          render([...stockList,...orderList], liveTitle, true, [...possibleStock, ...possibleOrderList]);
           lastPaintedOrderCount=orderList.length;
           loading?.setText("Найдено деталей: " + (stockList.length + orderList.length));
           await new Promise(resolve => setTimeout(resolve, 0));
