@@ -1417,7 +1417,7 @@ async function searchCar() {
       if (item?._order || item?._unavailable) continue;
       indexStockValue(stockRowsByArticle, item?.catalog_number, item);
       String(item?.original_number || "")
-        .split(/[,;\\n]+/)
+        .split(/[,;\n]+/)
         .forEach(oem => indexStockValue(stockRowsByOem, oem, item));
     }
 
