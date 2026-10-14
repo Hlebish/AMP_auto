@@ -1911,7 +1911,6 @@ async function searchCar() {
     const list=[...stockList,...orderList];
     render(list,liveTitle,true,[...possibleStock,...possibleOrderList]);
 
-    setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   } finally {
     loading?.stop();
   }
@@ -3111,7 +3110,6 @@ async function searchCar() {
     const list=[...stockList,...orderList];
     render(list,liveTitle,true);
 
-    setTimeout(()=>document.querySelector(".results-section")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
   } finally {
     loading?.stop();
   }
