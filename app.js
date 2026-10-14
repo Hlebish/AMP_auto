@@ -1044,6 +1044,25 @@ function mergeStockDuplicates(list) {
 
     const merged = groups.get(article);
 
+    // Один артикул может повторяться из-за нескольких применяемостей.
+    // Остаток не суммируем: это были бы одни и те же детали, посчитанные
+    // несколько раз. Сохраняем наиболее информативный остаток:
+    // "5+" имеет приоритет над точным малым числом, иначе берём максимум.
+    const quantityRank = value => {
+      const text = String(value ?? "").trim();
+      if (text === "5+") return Number.POSITIVE_INFINITY;
+      const quantity = qtyValue(value);
+      return quantity > 0 ? quantity : -1;
+    };
+
+    if (quantityRank(item.quantity) > quantityRank(merged.quantity)) {
+      merged.quantity = item.quantity;
+      // Цена должна оставаться от той же строки, что и выбранный остаток.
+      if (item.price !== undefined && item.price !== null && item.price !== "") {
+        merged.price = item.price;
+      }
+    }
+
     merged.original_number = addUnique(
       [merged.original_number],
       [item.original_number]

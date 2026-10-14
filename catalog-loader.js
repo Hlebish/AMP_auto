@@ -110,7 +110,7 @@
         );
 
         const name = "catalog/catalog-" + String(i).padStart(2, "0") + ".json";
-        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        const res = await fetch(name + "?v=" + encodeURIComponent(manifest.version || VERSION), { cache: "force-cache" });
         if (!res.ok) throw new Error(name + ": HTTP " + res.status);
         const part = await res.json();
         if (Array.isArray(part)) {
@@ -186,7 +186,7 @@
         );
 
         const name = "orders/order-" + String(i).padStart(3, "0") + ".json";
-        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        const res = await fetch(name + "?v=" + encodeURIComponent(manifest.version || VERSION), { cache: "force-cache" });
         if (!res.ok) throw new Error(name + ": HTTP " + res.status);
         const part = await res.json();
         if (Array.isArray(part)) {
@@ -384,7 +384,7 @@
         );
 
         const name = "crosses/cross-" + String(i).padStart(2, "0") + ".json";
-        const res = await fetch(name + "?v=" + VERSION, { cache: "force-cache" });
+        const res = await fetch(name + "?v=" + encodeURIComponent(manifest.version || VERSION), { cache: "force-cache" });
         if (!res.ok) throw new Error(name + ": HTTP " + res.status);
         const part = await res.json();
         if (!Array.isArray(part)) continue;
